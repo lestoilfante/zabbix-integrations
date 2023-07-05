@@ -1,0 +1,674 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-07-05T14:32:17Z'
+  groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 92e519b0924b41a3aa3b4e3468ae8406
+      template: 'Watchguard Firewall'
+      name: 'Watchguard Firewall'
+      description: |
+        ## Overview ##
+        
+        WatchGuard Fireware template tested on v12 Fireware.
+        
+        Items overview:
+        *General health checks by SNMP
+        *ICMP stats
+        *Public OS updates availability (based on website url defined in
+        	{$WG_DOWNLOAD_HOME} and {$WG_DOWNLOAD_URL})
+        
+        Discovery Rules:
+        *FireCluster
+        *Network Interfaces
+        
+        ## Author
+        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+        
+        ## License
+        GNU General Public License version 3 (GPLv3)
+      groups:
+        - name: Templates
+      items:
+        - uuid: 75bb7d3abb624214b674fc1223892ae4
+          name: 'ICMP ping'
+          type: SIMPLE
+          key: icmpping
+          history: 30d
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 27b4e73cf8c94568b12a4aadb831b5ce
+              expression: 'max(/Watchguard Firewall/icmpping,#3)=0'
+              name: 'Unavailable by ICMP ping'
+              priority: HIGH
+              description: 'Last three attempts returned timeout.  Please check device connectivity.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: a8e5eb39301d4c2fa49976ae487fc799
+          name: 'ICMP loss'
+          type: SIMPLE
+          key: icmppingloss
+          history: 30d
+          value_type: FLOAT
+          units: '%'
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 74fe762df405471595fc38d02e043671
+              expression: 'min(/Watchguard Firewall/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/Watchguard Firewall/icmppingloss,5m)<100'
+              name: 'High ICMP ping loss'
+              opdata: 'Loss: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Watchguard Firewall/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+        - uuid: 5720997004ee402bb16bd8a93a6ad81f
+          name: 'ICMP response time'
+          type: SIMPLE
+          key: icmppingsec
+          history: 30d
+          value_type: FLOAT
+          units: s
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 56d27e7cf8c045c0b02e75ab7cd273ad
+              expression: 'avg(/Watchguard Firewall/icmppingsec,5m)>{$ICMP_RESPONSE_TIME_WARN}'
+              name: 'High ICMP ping response time'
+              opdata: 'Value: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              dependencies:
+                - name: 'High ICMP ping loss'
+                  expression: 'min(/Watchguard Firewall/icmppingloss,5m)>{$ICMP_LOSS_WARN} and min(/Watchguard Firewall/icmppingloss,5m)<100'
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Watchguard Firewall/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+                - tag: scope
+                  value: performance
+        - uuid: f2e8aef4cac3467cb731614c5289c7f0
+          name: 'Free Memory'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.2021.4.11.0
+          key: memTotalFree
+          units: B
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '1000'
+          tags:
+            - tag: Application
+              value: Memory
+        - uuid: 00d420989a92483b8a5ed79f9ae19f8f
+          name: 'Total Memory'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.2021.4.5.0
+          key: memTotalReal
+          delay: 1h
+          units: B
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '1000'
+          tags:
+            - tag: Application
+              value: Memory
+        - uuid: 536dc0eb6f894d30ae57e58725069d4b
+          name: 'Device description'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.1.0
+          key: sysDescr
+          delay: 1h
+          trends: '0'
+          value_type: CHAR
+          description: 'Model name'
+          inventory_link: MODEL
+          preprocessing:
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            - tag: Application
+              value: General
+        - uuid: 1ee3a5f158154ae9b0643430882d9478
+          name: 'Device location'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.6.0
+          key: sysLocation
+          delay: 1h
+          trends: '0'
+          value_type: CHAR
+          description: 'The physical location of this node (e.g., `telephone closet, 3rd floor'').  If the location is unknown, the value is the zero-length string.'
+          inventory_link: LOCATION
+          preprocessing:
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            - tag: Application
+              value: General
+        - uuid: a4a197c52a884ec0ad6e97a9a7ea1279
+          name: 'Device name'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.5.0
+          key: sysName
+          trends: '0'
+          value_type: CHAR
+          description: 'An administratively-assigned name for this managed node. By convention, this is the node''s fully-qualified domain name.  If the name is unknown, the value is the zero-length string.'
+          inventory_link: NAME
+          preprocessing:
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            - tag: Application
+              value: General
+        - uuid: 60c3f4f80bd54f7cb8c776b502d0d6eb
+          name: 'Device uptime'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.1.1.0
+          key: sysUpTime
+          history: 1w
+          units: uptime
+          description: |
+            The amount of time since this host was last
+            initialized. Note that this is different from
+            sysUpTime in the SNMPv2-MIB [RFC1907] because
+            sysUpTime is the uptime of the network management
+            portion of the system.
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: Application
+              value: General
+          triggers:
+            - uuid: cd0a184f486f4f9f8864bbf038a6cd5a
+              expression: 'last(/Watchguard Firewall/sysUpTime)<10m'
+              name: 'has been restarted'
+              event_name: '{HOST.NAME} has been restarted (uptime < 10m)'
+              priority: WARNING
+              manual_close: 'YES'
+              dependencies:
+                - name: 'No SNMP data collection'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              tags:
+                - tag: scope
+                  value: notice
+        - uuid: 2c383457823744bb87adaa7e9ab70cf6
+          name: 'Latest OS available'
+          type: DEPENDENT
+          key: wgOShttpCheck
+          delay: '0'
+          history: 1d
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                  	var devLink = getDeviceLink("{$WG_DOWNLOAD_HOME}", value);
+                  	if(devLink == null)
+                  		throw "Failed to get device resource link";
+                  	var devLatestOS = getDeviceLatestOS("{$WG_DOWNLOAD_URL}" + devLink);
+                  	if(devLatestOS == null)
+                  		throw "Failed to get device latest OS";
+                  	return devLatestOS;
+                  }
+                  catch(e) {
+                  	return "ERROR: " + e;
+                  }
+                  
+                  function getDeviceLink(url, model){
+                  	var req = new HttpRequest();
+                  	var resp = req.get(url,null);
+                  	if(req.getStatus()!=200)
+                  		return null;
+                  	else{
+                  		var regex = /var devices = (.*?);\n/;
+                  		var match = regex.exec(resp);
+                  		var devicesData = JSON.parse(match[1]);
+                  		var matchingLink = null;
+                  		for (var i = 0; i < devicesData.length; i++) {
+                  			for (var ii = 0; ii < devicesData[i].ProductFamilies.length; ii++) {
+                  				var obj = devicesData[i].ProductFamilies[ii];
+                  				if (obj.Name && obj.Name.indexOf(model) !== -1) {
+                  					matchingLink = obj.Id;
+                  					break;
+                  				}
+                  			}
+                  		}
+                  		return matchingLink;
+                  	}
+                  }
+                  function getDeviceLatestOS(url){
+                  	var req = new HttpRequest();
+                  	var resp = req.get(url,null);
+                  	if(req.getStatus()!=200)
+                  		return null;
+                  	else{
+                  		var regex = /<h5 .*id="0releaseHeader".*>Fireware v(.*)<\/h5>/;
+                  		var match = regex.exec(resp);
+                  		return match[1];
+                  	}
+                  }
+                  
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: sysDescr
+          triggers:
+            - uuid: 2fd3954757674e0a8c282278970acc26
+              expression: 'find(/Watchguard Firewall/wgOShttpCheck,#1,"regexp","^ERROR.*")=1'
+              name: 'Failed to retrieve latest OS available'
+              priority: INFO
+        - uuid: 04e63d1d155f4c4c87e4b922b3e2056a
+          name: 'Software version'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.3097.6.3.1.0
+          key: wgSoftwareVersion
+          delay: 1h
+          trends: '0'
+          value_type: CHAR
+          inventory_link: SOFTWARE
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^<sysa:(.*?)\.B.*>'
+                - \1
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+        - uuid: 32b908f609804e5bab00cae2a71bbaa3
+          name: 'CPU Utilization'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.3097.6.3.77.0
+          key: wgSystemCpuUtil1
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: Application
+              value: General
+          triggers:
+            - uuid: d5669fc0f1c14d3da6456bee79dca905
+              expression: 'last(/Watchguard Firewall/wgSystemCpuUtil1,#5)>80'
+              name: 'CPU Utilization High'
+              opdata: '{ITEM.LASTVALUE}%'
+              priority: WARNING
+              dependencies:
+                - name: 'No SNMP data collection'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+        - uuid: e044223da77d42e0b9de7f1e3138a7f0
+          name: 'Active Connections'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.3097.6.3.80.0
+          key: wgSystemCurrActiveConns
+          tags:
+            - tag: Application
+              value: General
+        - uuid: 4b0553100ad7452c9915f0f4f6c4a7df
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          history: 7d
+          description: |
+            Availability of SNMP checks on the host. The value of this item corresponds to availability icons in the host list.
+            Possible value:
+            0 - not available
+            1 - available
+            2 - unknown
+          valuemap:
+            name: zabbix.host.available
+          tags:
+            - tag: component
+              value: health
+            - tag: component
+              value: network
+          triggers:
+            - uuid: 89e962ff716c4384a56419fd7b6b188a
+              expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              name: 'No SNMP data collection'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'SNMP is not available for polling. Please check device connectivity and SNMP settings.'
+              dependencies:
+                - name: 'Unavailable by ICMP ping'
+                  expression: 'max(/Watchguard Firewall/icmpping,#3)=0'
+              tags:
+                - tag: scope
+                  value: availability
+      discovery_rules:
+        - uuid: e594342709dc49c5ba2201cafe8897d1
+          name: 'Network interfaces discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFOPERSTATUS},1.3.6.1.2.1.2.2.1.8,{#IFADMINSTATUS},1.3.6.1.2.1.2.2.1.7,{#IFALIAS},1.3.6.1.2.1.31.1.1.1.18,{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFDESCR},1.3.6.1.2.1.2.2.1.2,{#IFTYPE},1.3.6.1.2.1.2.2.1.3]'
+          key: wg.net.if.discovery
+          delay: 1h
+          description: 'Discovering interfaces from IF-MIB.'
+          item_prototypes:
+            - uuid: 8f6a3e3462204ddca2abc7d41436be2c
+              name: 'Interface {#IFDESCR}: Speed'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
+              key: 'wg.net.if.speed[ifHighSpeed.{#SNMPINDEX}]'
+              delay: 5m
+              history: 7d
+              trends: '0'
+              units: bps
+              description: |
+                MIB: IF-MIB
+                An estimate of the interface's current bandwidth in units of 1,000,000 bits per second. If this object reports a value of `n' then the speed of the interface is somewhere in the range of `n-500,000' to`n+499,999'.  For interfaces which do not vary in bandwidth or for those where no accurate estimation can be made, this object should contain the nominal bandwidth. For a sub-layer which has no concept of bandwidth, this object should be zero.
+              preprocessing:
+                - type: IN_RANGE
+                  parameters:
+                    - '1'
+                    - ''
+                - type: MULTIPLIER
+                  parameters:
+                    - '1000000'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                - tag: Application
+                  value: Interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+            - uuid: 88af523c17be433c96dd691cef2d0cee
+              name: 'Interface {#IFDESCR}: Operational status'
+              type: SNMP_AGENT
+              snmp_oid: '.1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'wg.net.if.status[ifOperStatus.{#SNMPINDEX}]'
+              history: 7d
+              trends: '0'
+              description: |
+                MIB: IF-MIB
+                The current operational state of the interface.
+                - The testing(3) state indicates that no operational packet scan be passed
+                - If ifAdminStatus is down(2) then ifOperStatus should be down(2)
+                - If ifAdminStatus is changed to up(1) then ifOperStatus should change to up(1) if the interface is ready to transmit and receive network traffic
+                - It should change todormant(5) if the interface is waiting for external actions (such as a serial line waiting for an incoming connection)
+                - It should remain in the down(2) state if and only if there is a fault that prevents it from going to the up(1) state
+                - It should remain in the notPresent(6) state if the interface has missing(typically, hardware) components.
+              valuemap:
+                name: 'IF-MIB::ifOperStatus'
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              tags:
+                - tag: Application
+                  value: Interfaces
+                - tag: interface
+                  value: '{#IFDESCR}'
+              trigger_prototypes:
+                - uuid: 2bd1ff696b66482a803feca285e321f2
+                  expression: 'last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>2 and (last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}],#1)<>last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}],#2))'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}],#1)=1 or changecount(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}],4d)=0'
+                  name: 'Interface {#IFDESCR}: Link down'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: AVERAGE
+            - uuid: a0c8ac2a68cf44f2b1630f621a002b11
+              name: 'Interface {#IFDESCR}: Interface type'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.3.{#SNMPINDEX}'
+              key: 'wg.net.if.type[ifType.{#SNMPINDEX}]'
+              delay: 1h
+              history: 7d
+              trends: '0'
+              description: |
+                MIB: IF-MIB
+                The type of interface.
+                Additional values for ifType are assigned by the Internet Assigned Numbers Authority (IANA),
+                through updating the syntax of the IANAifType textual convention.
+              valuemap:
+                name: 'IF-MIB::ifType'
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              tags:
+                - tag: interface
+                  value: '{#IFDESCR}'
+          trigger_prototypes:
+            - uuid: fc3d20b5f93747449e633bdf5f54c84b
+              expression: |
+                change(/Watchguard Firewall/wg.net.if.speed[ifHighSpeed.{#SNMPINDEX}])<0 and last(/Watchguard Firewall/wg.net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0
+                and (last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}])<>2)
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: '(change(/Watchguard Firewall/wg.net.if.speed[ifHighSpeed.{#SNMPINDEX}])>0 and last(/Watchguard Firewall/wg.net.if.speed[ifHighSpeed.{#SNMPINDEX}],#2)>0) or (last(/Watchguard Firewall/wg.net.if.status[ifOperStatus.{#SNMPINDEX}])=2)'
+              name: 'Interface {#IFDESCR}: has changed to lower speed than it was before'
+              opdata: 'Current reported speed: {ITEM.LASTVALUE1}'
+              priority: INFO
+        - uuid: 1216e4f77fce48d78c380df0d1981e36
+          name: FireCluster
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#SNMP.ITEM}, .1.3.6.1.4.1.3097.6.6]'
+          key: wgClusterEnabled.discovery
+          delay: 4h
+          description: |
+            Look wgClusterEnabled OID .1.3.6.1.4.1.3097.6.6.1.0
+            
+            If value is 1 use item prototype to create Members Item
+          item_prototypes:
+            - uuid: 6b0eb08d5c6947159356855853ece59f
+              name: 'FireCluster Member #1 HW Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.5.0
+              key: 'wgFirstMemberHardwareHealth[{#MEMBER.ID.1}]'
+              value_type: FLOAT
+            - uuid: a86d1a03931e4e3e93e259882f44bc67
+              name: 'FireCluster Member #1'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.2.0
+              key: 'wgFirstMemberId[{#MEMBER.ID.1}]'
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+            - uuid: a8ce16cf257e4b2a9fbaef0050f92783
+              name: 'FireCluster Member #1 Port Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.6.0
+              key: 'wgFirstMemberMonitorPortHealth[{#MEMBER.ID.1}]'
+              value_type: FLOAT
+            - uuid: 64c0a50d11e640d7bab90ba8fa13d989
+              name: 'FireCluster Member #1 Role'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.3.0
+              key: 'wgFirstMemberRole[{#MEMBER.ID.1}]'
+            - uuid: 8b1c920ee73b4d4ba4b499f8607bea63
+              name: 'FireCluster Member #1 Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.4.0
+              key: 'wgFirstMemberSystemHealth[{#MEMBER.ID.1}]'
+              value_type: FLOAT
+            - uuid: 4e69383baf2b4d2d9856ccc10b3c6e4c
+              name: 'FireCluster Member #1 Weighted Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.7.0
+              key: 'wgFirstMemberWeightAvg[{#MEMBER.ID.1}]'
+              value_type: FLOAT
+              trigger_prototypes:
+                - uuid: 8f90b5df106640c4862baa6e0835aead
+                  expression: 'last(/Watchguard Firewall/wgFirstMemberWeightAvg[{#MEMBER.ID.1}])<>100'
+                  name: 'FireCluster Member #1 Overall Health'
+                  priority: WARNING
+                  description: 'Overall health is not optimal, check hw and port connectivity'
+                  dependencies:
+                    - name: 'No SNMP data collection'
+                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+            - uuid: 25e05b02ab6740b4ba19b766a23e9325
+              name: 'FireCluster Member #2 HW Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.11.0
+              key: 'wgSecondMemberHardwareHealth[{#MEMBER.ID.2}]'
+              value_type: FLOAT
+            - uuid: 07ea99adb9ba402da9ed1bac41121fca
+              name: 'FireCluster Member #2'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.8.0
+              key: 'wgSecondMemberId[{#MEMBER.ID.2}]'
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+            - uuid: 9dd6c7d2e2f7411495a97baaec9e58d9
+              name: 'FireCluster Member #2 Port Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.12.0
+              key: 'wgSecondMemberMonitorPortHealth[{#MEMBER.ID.2}]'
+              value_type: FLOAT
+            - uuid: e9810a0838ca46b194f87e0fab4c2510
+              name: 'FireCluster Member #2 Role'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.9.0
+              key: 'wgSecondMemberRole[{#MEMBER.ID.2}]'
+            - uuid: 850aeb70e10f4860a6c2a3e96e69fed0
+              name: 'FireCluster Member #2 Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.10.0
+              key: 'wgSecondMemberSystemHealth[{#MEMBER.ID.2}]'
+              value_type: FLOAT
+            - uuid: fe0be1668f2642178ebabd5d81c21073
+              name: 'FireCluster Member #2 Weighted Health'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.4.1.3097.6.6.13.0
+              key: 'wgSecondMemberWeightAvg[{#MEMBER.ID.2}]'
+              value_type: FLOAT
+              trigger_prototypes:
+                - uuid: b0c89c98b3d34cf6a75be463386910bd
+                  expression: 'last(/Watchguard Firewall/wgSecondMemberWeightAvg[{#MEMBER.ID.2}])<>100'
+                  name: 'FireCluster Member #2 Overall Health'
+                  priority: WARNING
+                  description: 'Overall health is not optimal, check hw and port connectivity'
+                  dependencies:
+                    - name: 'No SNMP data collection'
+                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+          trigger_prototypes:
+            - uuid: 45881587351b4161b6288c2ad3e3e675
+              expression: 'last(/Watchguard Firewall/wgFirstMemberRole[{#MEMBER.ID.1}],#1)<>last(/Watchguard Firewall/wgFirstMemberRole[{#MEMBER.ID.1}],#2) or last(/Watchguard Firewall/wgSecondMemberRole[{#MEMBER.ID.2}],#1)<>last(/Watchguard Firewall/wgSecondMemberRole[{#MEMBER.ID.2}],#2)'
+              name: 'FireCluster active member has changed'
+              priority: INFO
+              dependencies:
+                - name: 'No SNMP data collection'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  p=JSON.parse(value);
+                  isEnabled = p[0]["{#SNMP.ITEM}"];
+                  if(isEnabled == 1){
+                  	object = {'{#MEMBER.ID.1}':p[1]["{#SNMP.ITEM}"], '{#MEMBER.ID.2}':p[7]["{#SNMP.ITEM}"]};
+                  	output = [];
+                  	output.push(object);
+                  	return JSON.stringify(output);
+                  }
+                  else return 0;
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - ^0$
+              error_handler: DISCARD_VALUE
+      macros:
+        - macro: '{$ICMP_LOSS_WARN}'
+          value: '20'
+        - macro: '{$ICMP_RESPONSE_TIME_WARN}'
+          value: '0.15'
+        - macro: '{$SNMP.TIMEOUT}'
+          value: 5m
+        - macro: '{$WG_DOWNLOAD_HOME}'
+          value: 'https://software.watchguard.com/'
+          description: 'WG website download landing page'
+        - macro: '{$WG_DOWNLOAD_URL}'
+          value: 'https://software.watchguard.com/SoftwareDownloads?current=true&familyId='
+          description: 'WG website download product page'
+      valuemaps:
+        - uuid: c8e640e6eede45f496cbaa219979e95e
+          name: 'IF-MIB::ifOperStatus'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
+        - uuid: cdd0cdba1c8341e2bacfdf86a84b9b1c
+          name: 'IF-MIB::ifType'
+          mappings:
+            - value: '6'
+              newvalue: ethernetCsmacd
+            - value: '131'
+              newvalue: tunnel
+        - uuid: 099c2a7f122249f0aeab61b39b42648f
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+        - uuid: 3e2a2d4ef1e94bccb0c23575779bcdd8
+          name: zabbix.host.available
+          mappings:
+            - value: '0'
+              newvalue: 'not available'
+            - value: '1'
+              newvalue: available
+            - value: '2'
+              newvalue: unknown
+  triggers:
+    - uuid: 76b745fb72e54ef3b8e732e913f626ba
+      expression: '((last(/Watchguard Firewall/memTotalFree)/last(/Watchguard Firewall/memTotalReal))*100)<5'
+      name: 'Available memory under 5%'
+      priority: INFO
+      dependencies:
+        - name: 'No SNMP data collection'
+          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+    - uuid: 24f83ccd10aa4a378879be583f8fe416
+      expression: 'last(/Watchguard Firewall/wgOShttpCheck)<>last(/Watchguard Firewall/wgSoftwareVersion)'
+      name: 'Update available:  {ITEM.VALUE1}'
+      priority: INFO
+      description: 'New Fireware update available'
+      dependencies:
+        - name: 'Failed to retrieve latest OS available'
+          expression: 'find(/Watchguard Firewall/wgOShttpCheck,#1,"regexp","^ERROR.*")=1'
+        - name: 'No SNMP data collection'
+          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'

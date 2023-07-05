@@ -1,0 +1,137 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-07-05T14:48:38Z'
+  groups:
+    - uuid: 58afa722676b4fba86702054223316d9
+      name: Templates/Printers
+  templates:
+    - uuid: 8c5bebe864884a1da17cd413382f89df
+      template: 'Printer generic SNMP'
+      name: 'Printer generic SNMP'
+      description: |
+        ## Overview ##
+        
+        Generic printer monitoring template
+        
+        Items overview:
+        *Printer model
+        *Printer serial
+        
+        Discovery Rules:
+        *Consumable items
+        *Page counter
+        
+        ## Author
+        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+        
+        ## License
+        GNU General Public License version 3 (GPLv3)
+      groups:
+        - name: Templates/Printers
+      items:
+        - uuid: dc640701375f468ab60ba9ab89ced317
+          name: Model
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.25.3.2.1.3.1
+          key: printer.info.model
+          delay: 1h;wd1-5h9-18
+          trends: '0'
+          value_type: CHAR
+          inventory_link: MODEL
+          preprocessing:
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+        - uuid: 14d75770bf2a4d978313dc9e055012ef
+          name: Serial
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.43.5.1.1.17.1
+          key: printer.info.serial
+          delay: 1h;wd1-5h9-18
+          trends: '0'
+          value_type: CHAR
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+      discovery_rules:
+        - uuid: 74689fad2d3544a29a33c9bb930425b4
+          name: 'Consumable discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#CONSUM_NAME},1.3.6.1.2.1.43.11.1.1.6.1,{#CONSUM_NAME_FALLBACK},1.3.6.1.2.1.43.12.1.1.4.1,{#MAX_CAPACITY},1.3.6.1.2.1.43.11.1.1.8.1,{#PRINTER_SERIAL},1.3.6.1.2.1.43.5.1.1.17]'
+          key: printer.consum.discovery
+          delay: '0;1h/1-5,09:00-18:00'
+          lifetime: 1825d
+          description: |
+            Some manufacturers don't put the actual cartridge color in OID 1.3.6.1.2.1.43.11.1.1.6.1.
+            Instead, each entry just says "toner". The 1.3.6.1.2.1.43.12.1.1.4.1 OID used here is a place where an associated color string must be stored. We are going to get this info so we could use it if not already available on first OID.
+          item_prototypes:
+            - uuid: fe9d2ec4266141409bf39fc13c47b1ab
+              name: 'Item {#CONSUM_NAME}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.43.11.1.1.9.1.{#SNMPINDEX}'
+              key: 'printer.[{#PRINTER_SERIAL}.consum.{#SNMPINDEX}]'
+              delay: '0;2h/1-5,10:30-18:00'
+              value_type: FLOAT
+              units: '%'
+              valuemap:
+                name: 'Generic capacity'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if(value < 0)
+                      	return value;
+                      else
+                      	return (value * 100)/'{#MAX_CAPACITY}';
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+            - uuid: 61ac8328b0834406b8cd07c1906691f6
+              name: 'Page count'
+              type: SNMP_AGENT
+              snmp_oid: .1.3.6.1.2.1.43.10.2.1.4.1.1
+              key: 'printer.[{#PRINTER_SERIAL}.pages]'
+              delay: '0;2h/1-5,11:00-13:00'
+              history: 1825d
+              trends: 1825d
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // check for hex string and convert to ascii string if needed
+                  regex = /"{#CONSUM_NAME}":"(([0-9A-F]{2}\s){4,})"/gi;
+                  match = value.match(regex);
+                  if(match != null){
+                  	for(var n=0; n < match.length; n++){
+                  		myascii = '';
+                  		myhex = match[n].replace(/ /g,'');
+                  		for (var i = 0; i < myhex.length; i += 2) {
+                  			if (myhex.substr(i, 2) != '00'){
+                  				myascii += String.fromCharCode(parseInt(myhex.substr(i, 2), 16));
+                  			}
+                  		}
+                  		myascii = myascii.replace(/\x00/gi,'');
+                  		value = value.replace(match[n],'"{#CONSUM_NAME}":"'+myascii.trim()+'"');
+                  	}
+                  }
+                  myjson = JSON.parse(value);
+                  // default serial if value missing
+                  serial = '0000';
+                  if(myjson[0]['{#PRINTER_SERIAL}'] != null)
+                  	serial = myjson[0]['{#PRINTER_SERIAL}'];
+                  // copy property printer serial to all item, will be used as key in item prototype
+                  for (var i = 0; i < myjson.length; i++) {
+                  	if(myjson[i]['{#PRINTER_SERIAL}'] == null)
+                  		myjson[i]['{#PRINTER_SERIAL}'] = serial;
+                  }
+                  return JSON.stringify(myjson);
+      valuemaps:
+        - uuid: b05925adf0c346da82658f8f8a9ba7d8
+          name: 'Generic capacity'
+          mappings:
+            - value: '-3'
+              newvalue: 'Level OK'
+            - value: '-2'
+              newvalue: Unknown
