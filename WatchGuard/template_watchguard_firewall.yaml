@@ -229,7 +229,8 @@ zabbix_export:
               parameters:
                 - |
                   try {
-                  	var devLink = getDeviceLink("{$WG_DOWNLOAD_HOME}", value);
+                  	var v = value.replace(/-W$/, "");
+                  	var devLink = getDeviceLink("{$WG_DOWNLOAD_HOME}", v);
                   	if(devLink == null)
                   		throw "Failed to get device resource link";
                   	var devLatestOS = getDeviceLatestOS("{$WG_DOWNLOAD_URL}" + devLink);
