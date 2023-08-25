@@ -1,0 +1,918 @@
+zabbix_export:
+  version: '6.0'
+  date: '2023-08-25T15:07:45Z'
+  groups:
+    - uuid: 3dcd5bbe90534f9e8eb5c2d53756af63
+      name: Templates/Power
+  templates:
+    - uuid: 7a6f64182a884106a6a9426d5ac10240
+      template: 'APC Smart-UPS SmartConnect'
+      name: 'APC Smart-UPS SmartConnect'
+      description: |
+        Template APC Smart-UPS SmartConnect
+        
+        Collects information from the APC SmartConnect Cloud platform, including voltage, current, power, status, temperature, battery usage, and relevant events
+        
+        Mandatory macro:
+        {$APCSC.USER}
+        {$APCSC.PASSWORD}
+        
+        Optional macro:
+        {$APC.SERIAL}
+        
+        Requires external script APC-ScrapConnect.php
+        (https://github.com/lestoilfante/APC-ScrapConnect/blob/master/APC-ScrapConnect.php)
+                
+        ## Author
+        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+                
+        ## License
+        GNU General Public License version 3 (GPLv3)
+      groups:
+        - name: Templates/Power
+      items:
+        - uuid: 74ea2153b455484f9349fc3f35a8dd3d
+          name: 'Set inventory type'
+          type: SCRIPT
+          key: inventory.type
+          delay: 1d
+          history: '0'
+          trends: '0'
+          value_type: CHAR
+          params: 'return "{$INVENTORY.TYPE}"'
+          inventory_link: TYPE
+          tags:
+            - tag: component
+              value: inventory
+      discovery_rules:
+        - uuid: 375199e8303143ed86005c441e200b19
+          name: 'Device discovery'
+          type: EXTERNAL
+          key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",discovery,"{$APC.SERIAL}","{HOST.IP}"]'
+          delay: 1h
+          item_prototypes:
+            - uuid: 4e782f61dff54e788839465dd383abf8
+              name: 'Get details'
+              type: EXTERNAL
+              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'JSON data source'
+            - uuid: 72e682b285a747e48bd2687874f13d51
+              name: 'Get Info'
+              type: EXTERNAL
+              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: 'JSON data source'
+              preprocessing:
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+            - uuid: ce723c56bb9c48aa9bbba08702df4619
+              name: 'Battery capacity'
+              type: DEPENDENT
+              key: 'apcsc.battery.chargePercentage[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: 'Remaining battery capacity expressed as percentage of full capacity.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.chargeStatePercentage
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 846b780b8b8a4229a9f706df499b2367
+                  expression: 'last(/APC Smart-UPS SmartConnect/apcsc.battery.chargePercentage[{#ID}])<{$BATTERY.CAPACITY.MIN.WARN}'
+                  name: 'Battery has low capacity'
+                  event_name: 'Battery has low capacity (below {$BATTERY.CAPACITY.MIN.WARN}%)'
+                  opdata: 'Current capacity: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+            - uuid: 0d77fd6907614e84aa80ef3423da4e59
+              name: 'Battery EOL'
+              type: DEPENDENT
+              key: 'apcsc.battery.EolDate[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'Battery date of expiry'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.status.batteryEolDate
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const date = new Date(value);
+                      const timestampSeconds = Math.floor(date.getTime() / 1000);
+                      return(timestampSeconds)
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+            - uuid: 4fb20806ed92442a8b338f4ade3e5a21
+              name: 'Battery last replace date'
+              type: DEPENDENT
+              key: 'apcsc.battery.installDate[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'The date when the UPS system''s batteries were last replaced'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.installDate
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const date = new Date(value);
+                      const timestampSeconds = Math.floor(date.getTime() / 1000);
+                      return(timestampSeconds)
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: 6d890dc4eec449c9aecabd8af8cd8063
+              name: 'Battery runtime remaining'
+              type: DEPENDENT
+              key: 'apcsc.battery.runtimeRemaining[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: '!m'
+              description: |
+                UPS battery run time remaining before battery exhaustion.
+                Data is rounded to 5-minute intervals for improved storage efficiency.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.runtimeRemaining
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const roundFactor = 5;
+                      const mins = parseInt(value*0.016);
+                      return Math.round(mins / roundFactor) * roundFactor;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: 0b818bfdb32f494c98ae2a12756bdaae
+              name: 'Battery voltage'
+              type: DEPENDENT
+              key: 'apcsc.battery.voltage[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              description: 'Actual battery voltage in Volts'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.voltage
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: d8b3d77180204b66b55f975d5bbf6dc7
+              name: 'Ongoing Error condition'
+              type: DEPENDENT
+              key: 'apcsc.condition.error[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              description: 'Returns active UPS conditions with severity level 3, based on platform''s discovered values.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var platformEvents = JSON.parse('{#EVTS}');
+                      var idsToFind = JSON.parse(value).map(function(item) {
+                          return item.id;
+                      });
+                      var filteredItems = platformEvents.filter(function(item) {
+                          return idsToFind.indexOf(item.K) !== -1 && item.S === 3;
+                      });
+                      var descriptions = filteredItems.map(function(item) {
+                          return item.D;
+                      });
+                      var joinedDescriptions = descriptions.join(',\n ');
+                      return joinedDescriptions;
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'apcsc.system.condition[{#ID}]'
+              trigger_prototypes:
+                - uuid: 44c93a9a69644900bd5ca10734a66441
+                  expression: 'length(last(/APC Smart-UPS SmartConnect/apcsc.condition.error[{#ID}]))<>0'
+                  name: 'Ongoing Error condition'
+                  priority: HIGH
+            - uuid: fdeb708905d54ee79fbaeabfcab17411
+              name: 'Ongoing Info condition'
+              type: DEPENDENT
+              key: 'apcsc.condition.info[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              description: 'Returns active UPS conditions with severity level 1, based on platform''s discovered values.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var platformEvents = JSON.parse('{#EVTS}');
+                      var idsToFind = JSON.parse(value).map(function(item) {
+                          return item.id;
+                      });
+                      var filteredItems = platformEvents.filter(function(item) {
+                          return idsToFind.indexOf(item.K) !== -1 && item.S === 1;
+                      });
+                      var descriptions = filteredItems.map(function(item) {
+                          return item.D;
+                      });
+                      var joinedDescriptions = descriptions.join(',\n ');
+                      return joinedDescriptions;
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'apcsc.system.condition[{#ID}]'
+              trigger_prototypes:
+                - uuid: a8484522b2b6467484ccce5e5fb5873d
+                  expression: 'length(last(/APC Smart-UPS SmartConnect/apcsc.condition.info[{#ID}]))<>0'
+                  name: 'Ongoing Info condition'
+                  priority: INFO
+            - uuid: 34978fa84d97471f94ae73512f43c131
+              name: 'Ongoing Warning condition'
+              type: DEPENDENT
+              key: 'apcsc.condition.warning[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: TEXT
+              description: 'Returns active UPS conditions with severity level 2, based on platform''s discovered values.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var platformEvents = JSON.parse('{#EVTS}');
+                      var idsToFind = JSON.parse(value).map(function(item) {
+                          return item.id;
+                      });
+                      var filteredItems = platformEvents.filter(function(item) {
+                          return idsToFind.indexOf(item.K) !== -1 && item.S === 2;
+                      });
+                      var descriptions = filteredItems.map(function(item) {
+                          return item.D;
+                      });
+                      var joinedDescriptions = descriptions.join(',\n ');
+                      return joinedDescriptions;
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'apcsc.system.condition[{#ID}]'
+              trigger_prototypes:
+                - uuid: ad8e519208ec4f96a90b01a586216ecb
+                  expression: 'length(last(/APC Smart-UPS SmartConnect/apcsc.condition.warning[{#ID}]))<>0'
+                  name: 'Ongoing Warning condition'
+                  priority: WARNING
+            - uuid: 233e8ed7714141459ebbbd6c42c19c48
+              name: 'Input efficiency'
+              type: DEPENDENT
+              key: 'apcsc.input.efficiency[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              description: |
+                *value range undocumented*
+                *currently seen betweeen -6 and 12300*
+                Data is rounded to 5-units intervals for improved storage efficiency.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.input.efficiencyPercentage
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const roundFactor = 5;
+                      return Math.round(value / roundFactor) * roundFactor;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: 112d741541cc4edd985132cc8b7e0253
+              name: 'Input frequency'
+              type: DEPENDENT
+              key: 'apcsc.input.frequency[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: Hz
+              description: 'Current line-in frequency in Hz'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.input.frequency
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 2017f00dc23e498fb928448e47a660a9
+                  expression: 'min(/APC Smart-UPS SmartConnect/apcsc.input.frequency[{#ID}],{$TIME.PERIOD})>0 and (min(/APC Smart-UPS SmartConnect/apcsc.input.frequency[{#ID}],{$TIME.PERIOD})>{$UPS.INPUT_FREQ.MAX.WARN} or max(/APC Smart-UPS SmartConnect/apcsc.input.frequency[{#ID}],{$TIME.PERIOD})<{$UPS.INPUT_FREQ.MIN.WARN})'
+                  name: 'Unacceptable input frequency'
+                  event_name: 'Unacceptable input frequency (out of range {$UPS.INPUT_FREQ.MIN.WARN}-{$UPS.INPUT_FREQ.MAX.WARN}Hz for {$TIME.PERIOD})'
+                  priority: HIGH
+            - uuid: 5e1a421816f04dd5b94e61e13ef343f7
+              name: 'Input voltage'
+              type: DEPENDENT
+              key: 'apcsc.input.voltage[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              description: 'Current line-in voltage in VAC'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.input.voltage
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 38b453bc838c452ba396d7b2576d4db1
+                  expression: 'min(/APC Smart-UPS SmartConnect/apcsc.input.voltage[{#ID}],{$TIME.PERIOD})>0 and (min(/APC Smart-UPS SmartConnect/apcsc.input.voltage[{#ID}],{$TIME.PERIOD})>{$UPS.INPUT_VOLT.MAX.WARN} or max(/APC Smart-UPS SmartConnect/apcsc.input.voltage[{#ID}],{$TIME.PERIOD})<{$UPS.INPUT_VOLT.MIN.WARN})'
+                  name: 'Unacceptable input voltage'
+                  event_name: 'Unacceptable input voltage (out of range {$UPS.INPUT_VOLT.MIN.WARN}-{$UPS.INPUT_VOLT.MAX.WARN}V for {$TIME.PERIOD})'
+                  priority: HIGH
+            - uuid: 958144b921224331b8c85959d0fe7126
+              name: 'Output current'
+              type: DEPENDENT
+              key: 'apcsc.output.current[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: A
+              description: 'Amount of current, measured in amperes, that is drawn by the load connected to the UPS'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.output.current
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: 068d65482ec1485bab3291e1b252bbd2
+              name: 'Output frequency'
+              type: DEPENDENT
+              key: 'apcsc.output.frequency[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: Hz
+              description: 'Current output frequency in Hz'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.output.frequency
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: 8812aa30364645048a39f990d8fb1d1a
+              name: 'Output load'
+              type: DEPENDENT
+              key: 'apcsc.output.load[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: |
+                Percentage of the UPS rated load consumed by devices attached.
+                Data is rounded to 0.5% intervals for improved storage efficiency.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.output.loadApparentPercentage
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const roundFactor = 0.5;
+                      return Math.round(value / roundFactor) * roundFactor;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - uuid: 565640b75a444dd6be29a489151c8be5
+                  expression: 'min(/APC Smart-UPS SmartConnect/apcsc.output.load[{#ID}],{$TIME.PERIOD})>{$UPS.OUTPUT.MAX.WARN}'
+                  name: 'Output load is high'
+                  event_name: 'Output load is high (over {$UPS.OUTPUT.MAX.WARN}% for {$TIME.PERIOD})'
+                  opdata: 'Current load: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+            - uuid: ab66258e4dea477d8660c53f7519e8d9
+              name: 'Output voltage'
+              type: DEPENDENT
+              key: 'apcsc.output.voltage[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              description: 'Output voltage in VAC'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.output.voltage
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: power
+            - uuid: 4fb27ec0e66348bfb464c22119a9603d
+              name: 'Selftest fail cause'
+              type: DEPENDENT
+              key: 'apcsc.selftest.failing[{#ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: |
+                Reason selftest can't be performed
+                Usually should be empty
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.selfTestAllowed.refusalReason
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+            - uuid: 58676b38738646c19d297eece213168f
+              name: 'Selftest interval'
+              type: DEPENDENT
+              key: 'apcsc.selftest.intv[{#ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: FLOAT
+              units: d
+              description: 'Days between battery selftests'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.selfTestInterval
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+            - uuid: 0b690db56b9b4042b8b8a1f32e4a1e8b
+              name: 'Selftest last result'
+              type: DEPENDENT
+              key: 'apcsc.selftest.result[{#ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: |
+                Last battery selftest result
+                Known values => [Passed, Unknown]
+              valuemap:
+                name: 'SmartConnect JSON statuses'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.selfTestResult
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              trigger_prototypes:
+                - uuid: a3269bb9ed3348819b4b8a6fd32300a9
+                  expression: 'last(/APC Smart-UPS SmartConnect/apcsc.selftest.result[{#ID}])<>{$APCSC.SELFTEST_OK}'
+                  name: 'Selftest last result'
+                  priority: WARNING
+            - uuid: 1d1eec76606048bcb7b53446622d7be6
+              name: 'External battery packs count'
+              type: DEPENDENT
+              key: 'apcsc.system.batteryFramesInstalledCount[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              description: 'Number of external battery packs connected'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.batteryFramesInstalledCount
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: 313daedd6ed84cd5a0f7ee95a6ccfb05
+              name: 'Battery model'
+              type: DEPENDENT
+              key: 'apcsc.system.batteryRbcSku[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'UPS battery model'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.batteryRbcSku
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: a1c24702bb264d48a6ac7ccf2351b8de
+              name: 'UPS Condition'
+              type: DEPENDENT
+              key: 'apcsc.system.condition[{#ID}]'
+              delay: '0'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: |
+                Array of active events demanding attention.
+                
+                Usually resolved with following discovered platform values:
+                {#EVTS}
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.status.upsCondition
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+            - uuid: 76f600c6641b4ee3b4b29c9802d588db
+              name: 'Device Firmware latest'
+              type: DEPENDENT
+              key: 'apcsc.system.firmwareLatest[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'Latest firmware available for this UPS'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.firmware.pendingVersion
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: NONE
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+            - uuid: 183144ec91ce436495743d38f947972a
+              name: 'Device Firmware'
+              type: DEPENDENT
+              key: 'apcsc.system.firmware[{#ID}]'
+              delay: '0'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              description: 'Current firmware installed on the UPS'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const d = JSON.parse(value);
+                      const version = d["Data"]["firmware"]["version"][0];
+                      const build= d["Data"]["ulVersion"][0];
+                      return version + ' (' + build + ')';
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+            - uuid: f9bc70592174496d9c789044319be516
+              name: Model
+              type: DEPENDENT
+              key: 'apcsc.system.model[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'The UPS model (e.g. ''SMT1500IC'').'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.partNumber
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: acafc15c638b479395176962b1ee3ccf
+              name: Name
+              type: DEPENDENT
+              key: 'apcsc.system.name[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'The UPS name as defined on SmartConnect platform'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.name
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: 8c879b1c91134edaab8b8d7a61b79219
+              name: Status
+              type: DEPENDENT
+              key: 'apcsc.system.OperatingMode[{#ID}]'
+              delay: '0'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              description: |
+                UPS operative status.
+                Normally "online"
+              valuemap:
+                name: 'SmartConnect JSON statuses'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.status.upsOperatingMode
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if('{$APCSC.OPERATIVE_OK}' === value)
+                        return value;
+                      var platformEvents = JSON.parse('{#EVTS}');
+                      var filteredItem = platformEvents.filter(function(item) {
+                        return item.K === value;
+                      })[0];
+                      var description = filteredItem ? filteredItem.D : value;
+                      return description;
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              trigger_prototypes:
+                - uuid: 639ce4cbdaac4caebb1888de05d3c41c
+                  expression: 'last(/APC Smart-UPS SmartConnect/apcsc.system.OperatingMode[{#ID}])<>{$APCSC.OPERATIVE_OK}'
+                  name: 'Operative Status'
+                  priority: HIGH
+            - uuid: e4327fd2d2e74b0cb3f2364f39c8d5f2
+              name: 'Communication Status'
+              type: DEPENDENT
+              key: 'apcsc.system.pluginStatus[{#ID}]'
+              delay: '0'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              description: 'UPS status on SmartConnect platform'
+              valuemap:
+                name: 'SmartConnect JSON statuses'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.status.pluginStatus
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if('{$APCSC.PLUGIN_OK}' === value)
+                        return value;
+                      var platformEvents = JSON.parse('{#EVTS}');
+                      var filteredItem = platformEvents.filter(function(item) {
+                        return item.K === value;
+                      })[0];
+                      var description = filteredItem ? filteredItem.D : value;
+                      return description;
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              trigger_prototypes:
+                - uuid: 654d7d0afa98428289585f87ec178dbf
+                  expression: 'last(/APC Smart-UPS SmartConnect/apcsc.system.pluginStatus[{#ID}])<>{$APCSC.PLUGIN_OK}'
+                  name: 'Communication Status'
+                  priority: AVERAGE
+            - uuid: f664151abd5a4af5adc879d412173404
+              name: 'Serial number'
+              type: DEPENDENT
+              key: 'apcsc.system.sn[{#ID}]'
+              delay: '0'
+              trends: '0'
+              value_type: CHAR
+              description: 'UPS serial number'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.serialNumber
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: inventory
+            - uuid: d83e6a6ff30942e8b2f239c5d9d4776d
+              name: 'Battery temperature'
+              type: DEPENDENT
+              key: 'apcsc.system.temperature[{#ID}]'
+              delay: '0'
+              history: 7d
+              value_type: FLOAT
+              units: ℃
+              description: |
+                Current internal UPS temperature in Celsius.
+                Data is rounded to 0.5-degrees intervals for improved storage efficiency.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.battery.temperature
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const roundFactor = 0.5;
+                      return Math.round(value / roundFactor) * roundFactor;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              tags:
+                - tag: component
+                  value: temperature
+              trigger_prototypes:
+                - uuid: 90bf69e740634553b0d372505e4e31fd
+                  expression: 'min(/APC Smart-UPS SmartConnect/apcsc.system.temperature[{#ID}],{$TIME.PERIOD})>{$BATTERY.TEMP.MAX.WARN}'
+                  name: 'Battery has high temperature'
+                  event_name: 'Battery has high temperature (over {$BATTERY.TEMP.MAX.WARN}℃ for {$TIME.PERIOD})'
+                  opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+            - uuid: 7e9557a4fa2747ad83d6d0687b7a0765
+              name: 'Warranty Expiry Date'
+              type: DEPENDENT
+              key: 'apcsc.system.warrantyEndDate[{#ID}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'Date of expiration of the UPS device''s warranty'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Data.status.subscription.endDate
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const date = new Date(value);
+                      const timestampSeconds = Math.floor(date.getTime() / 1000);
+                      return(timestampSeconds)
+                - type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+          preprocessing:
+            - type: NOT_MATCHES_REGEX
+              parameters:
+                - '["|'']}$'
+              error_handler: CUSTOM_ERROR
+              error_handler_params: 'Discovery returned an error'
+            - type: JSONPATH
+              parameters:
+                - $.Data
+      tags:
+        - tag: class
+          value: power
+        - tag: target
+          value: apc
+      macros:
+        - macro: '{$APC.SERIAL}'
+          description: 'Device SN'
+        - macro: '{$APCSC.OPERATIVE_OK}'
+          value: online
+          description: 'OK value for JSON key upsOperatingMode'
+        - macro: '{$APCSC.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'APC SmartConnect password'
+        - macro: '{$APCSC.PLUGIN_OK}'
+          value: comm_est
+          description: 'OK value for JSON key pluginStatus'
+        - macro: '{$APCSC.SELFTEST_OK}'
+          value: Passed
+          description: 'OK value for JSON key selfTestResult'
+        - macro: '{$APCSC.USER}'
+          description: 'APC SmartConnect username'
+        - macro: '{$BATTERY.CAPACITY.MIN.WARN}'
+          value: '50'
+          description: 'Minimum battery capacity percentage for trigger expression.'
+        - macro: '{$BATTERY.TEMP.MAX.WARN}'
+          value: '55'
+          description: 'Maximum battery temperature for trigger expression.'
+        - macro: '{$INVENTORY.TYPE}'
+          value: UPS
+          description: 'Used to set inventory Type for each host using this template'
+        - macro: '{$TIME.PERIOD}'
+          value: 15m
+          description: 'Time period for trigger expression.'
+        - macro: '{$UPS.INPUT_FREQ.MAX.WARN}'
+          value: '50.3'
+          description: 'Maximum input frequency for trigger expression.'
+        - macro: '{$UPS.INPUT_FREQ.MIN.WARN}'
+          value: '49.7'
+          description: 'Minimum input frequency for trigger expression.'
+        - macro: '{$UPS.INPUT_VOLT.MAX.WARN}'
+          value: '243'
+          description: 'Maximum input voltage for trigger expression.'
+        - macro: '{$UPS.INPUT_VOLT.MIN.WARN}'
+          value: '197'
+          description: 'Minimum input voltage for trigger expression.'
+        - macro: '{$UPS.OUTPUT.MAX.WARN}'
+          value: '80'
+          description: 'Maximum output load in % for trigger expression.'
+      valuemaps:
+        - uuid: 569e2ed56f374b99bc286b3cecf0622a
+          name: 'SmartConnect JSON statuses'
+          mappings:
+            - value: comm_est
+              newvalue: OK
+            - value: online
+              newvalue: OK
+            - value: Passed
+              newvalue: OK
