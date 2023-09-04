@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2023-08-25T15:07:45Z'
+  date: '2023-09-04T13:35:50Z'
   groups:
     - uuid: 3dcd5bbe90534f9e8eb5c2d53756af63
       name: Templates/Power
@@ -768,6 +768,7 @@ zabbix_export:
                 - uuid: 654d7d0afa98428289585f87ec178dbf
                   expression: 'last(/APC Smart-UPS SmartConnect/apcsc.system.pluginStatus[{#ID}])<>{$APCSC.PLUGIN_OK}'
                   name: 'Communication Status'
+                  status: DISABLED
                   priority: AVERAGE
             - uuid: f664151abd5a4af5adc879d412173404
               name: 'Serial number'
