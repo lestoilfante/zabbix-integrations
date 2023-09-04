@@ -139,14 +139,15 @@ zabbix_export:
           snmp_oid: .1.3.6.1.2.1.1.1.0
           key: sysDescr
           delay: 1h
+          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'Model name'
           inventory_link: MODEL
           preprocessing:
-            - type: DISCARD_UNCHANGED
+            - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - ''
+                - '{$WG_HISTORY_L}'
           tags:
             - tag: Application
               value: General
@@ -156,14 +157,15 @@ zabbix_export:
           snmp_oid: .1.3.6.1.2.1.1.6.0
           key: sysLocation
           delay: 1h
+          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'The physical location of this node (e.g., `telephone closet, 3rd floor'').  If the location is unknown, the value is the zero-length string.'
           inventory_link: LOCATION
           preprocessing:
-            - type: DISCARD_UNCHANGED
+            - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - ''
+                - '{$WG_HISTORY_L}'
           tags:
             - tag: Application
               value: General
@@ -172,14 +174,15 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: .1.3.6.1.2.1.1.5.0
           key: sysName
+          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'An administratively-assigned name for this managed node. By convention, this is the node''s fully-qualified domain name.  If the name is unknown, the value is the zero-length string.'
           inventory_link: NAME
           preprocessing:
-            - type: DISCARD_UNCHANGED
+            - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - ''
+                - '{$WG_HISTORY_L}'
           tags:
             - tag: Application
               value: General
@@ -212,7 +215,7 @@ zabbix_export:
               manual_close: 'YES'
               dependencies:
                 - name: 'No SNMP data collection'
-                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
               tags:
                 - tag: scope
                   value: notice
@@ -221,7 +224,7 @@ zabbix_export:
           type: DEPENDENT
           key: wgOShttpCheck
           delay: '0'
-          history: 1d
+          history: '{$WG_HISTORY_S}'
           trends: '0'
           value_type: CHAR
           preprocessing:
@@ -278,7 +281,7 @@ zabbix_export:
                   
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - 1d
+                - '{$WG_HISTORY_S}'
           master_item:
             key: sysDescr
           triggers:
@@ -292,6 +295,7 @@ zabbix_export:
           snmp_oid: .1.3.6.1.4.1.3097.6.3.1.0
           key: wgSoftwareVersion
           delay: 1h
+          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           inventory_link: SOFTWARE
@@ -300,9 +304,9 @@ zabbix_export:
               parameters:
                 - '^<sysa:(.*?)\.B.*>'
                 - \1
-            - type: DISCARD_UNCHANGED
+            - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - ''
+                - '{$WG_HISTORY_L}'
         - uuid: 32b908f609804e5bab00cae2a71bbaa3
           name: 'CPU Utilization'
           type: SNMP_AGENT
@@ -325,7 +329,7 @@ zabbix_export:
               priority: WARNING
               dependencies:
                 - name: 'No SNMP data collection'
-                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
         - uuid: e044223da77d42e0b9de7f1e3138a7f0
           name: 'Active Connections'
           type: SNMP_AGENT
@@ -354,7 +358,7 @@ zabbix_export:
               value: network
           triggers:
             - uuid: 89e962ff716c4384a56419fd7b6b188a
-              expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+              expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
               name: 'No SNMP data collection'
               opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: WARNING
@@ -407,7 +411,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '.1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
               key: 'wg.net.if.status[ifOperStatus.{#SNMPINDEX}]'
-              history: 7d
+              history: '{$WG_HISTORY_M}'
               trends: '0'
               description: |
                 MIB: IF-MIB
@@ -421,9 +425,9 @@ zabbix_export:
               valuemap:
                 name: 'IF-MIB::ifOperStatus'
               preprocessing:
-                - type: DISCARD_UNCHANGED
+                - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
-                    - ''
+                    - '{$WG_HISTORY_M}'
               tags:
                 - tag: Application
                   value: Interfaces
@@ -443,7 +447,7 @@ zabbix_export:
               snmp_oid: '1.3.6.1.2.1.2.2.1.3.{#SNMPINDEX}'
               key: 'wg.net.if.type[ifType.{#SNMPINDEX}]'
               delay: 1h
-              history: 7d
+              history: '{$WG_HISTORY_S}'
               trends: '0'
               description: |
                 MIB: IF-MIB
@@ -453,9 +457,9 @@ zabbix_export:
               valuemap:
                 name: 'IF-MIB::ifType'
               preprocessing:
-                - type: DISCARD_UNCHANGED
+                - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
-                    - ''
+                    - '{$WG_HISTORY_S}'
               tags:
                 - tag: interface
                   value: '{#IFDESCR}'
@@ -528,7 +532,7 @@ zabbix_export:
                   description: 'Overall health is not optimal, check hw and port connectivity'
                   dependencies:
                     - name: 'No SNMP data collection'
-                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
             - uuid: 25e05b02ab6740b4ba19b766a23e9325
               name: 'FireCluster Member #2 HW Health'
               type: SNMP_AGENT
@@ -577,7 +581,7 @@ zabbix_export:
                   description: 'Overall health is not optimal, check hw and port connectivity'
                   dependencies:
                     - name: 'No SNMP data collection'
-                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+                      expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
           trigger_prototypes:
             - uuid: 45881587351b4161b6288c2ad3e3e675
               expression: 'last(/Watchguard Firewall/wgFirstMemberRole[{#MEMBER.ID.1}],#1)<>last(/Watchguard Firewall/wgFirstMemberRole[{#MEMBER.ID.1}],#2) or last(/Watchguard Firewall/wgSecondMemberRole[{#MEMBER.ID.2}],#1)<>last(/Watchguard Firewall/wgSecondMemberRole[{#MEMBER.ID.2}],#2)'
@@ -585,7 +589,7 @@ zabbix_export:
               priority: INFO
               dependencies:
                 - name: 'No SNMP data collection'
-                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+                  expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
@@ -608,7 +612,7 @@ zabbix_export:
           value: '20'
         - macro: '{$ICMP_RESPONSE_TIME_WARN}'
           value: '0.15'
-        - macro: '{$SNMP.TIMEOUT}'
+        - macro: '{$SNMP_TIMEOUT}'
           value: 5m
         - macro: '{$WG_DOWNLOAD_HOME}'
           value: 'https://software.watchguard.com/'
@@ -616,6 +620,15 @@ zabbix_export:
         - macro: '{$WG_DOWNLOAD_URL}'
           value: 'https://software.watchguard.com/SoftwareDownloads?current=true&familyId='
           description: 'WG website download product page'
+        - macro: '{$WG_HISTORY_L}'
+          value: 90d
+          description: 'History long'
+        - macro: '{$WG_HISTORY_M}'
+          value: 1w
+          description: 'History medium'
+        - macro: '{$WG_HISTORY_S}'
+          value: 1d
+          description: 'History short'
       valuemaps:
         - uuid: c8e640e6eede45f496cbaa219979e95e
           name: 'IF-MIB::ifOperStatus'
@@ -662,7 +675,7 @@ zabbix_export:
       priority: INFO
       dependencies:
         - name: 'No SNMP data collection'
-          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
     - uuid: 24f83ccd10aa4a378879be583f8fe416
       expression: 'last(/Watchguard Firewall/wgOShttpCheck)<>last(/Watchguard Firewall/wgSoftwareVersion)'
       name: 'Update available:  {ITEM.VALUE1}'
@@ -672,4 +685,4 @@ zabbix_export:
         - name: 'Failed to retrieve latest OS available'
           expression: 'find(/Watchguard Firewall/wgOShttpCheck,#1,"regexp","^ERROR.*")=1'
         - name: 'No SNMP data collection'
-          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP.TIMEOUT})=0'
+          expression: 'max(/Watchguard Firewall/zabbix[host,snmp,available],{$SNMP_TIMEOUT})=0'
