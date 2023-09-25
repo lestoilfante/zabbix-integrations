@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2023-07-05T14:32:17Z'
+  date: '2023-09-25T08:41:42Z'
   groups:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
@@ -139,7 +139,6 @@ zabbix_export:
           snmp_oid: .1.3.6.1.2.1.1.1.0
           key: sysDescr
           delay: 1h
-          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'Model name'
@@ -147,7 +146,7 @@ zabbix_export:
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - '{$WG_HISTORY_L}'
+                - 1d
           tags:
             - tag: Application
               value: General
@@ -157,7 +156,6 @@ zabbix_export:
           snmp_oid: .1.3.6.1.2.1.1.6.0
           key: sysLocation
           delay: 1h
-          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'The physical location of this node (e.g., `telephone closet, 3rd floor'').  If the location is unknown, the value is the zero-length string.'
@@ -165,7 +163,7 @@ zabbix_export:
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - '{$WG_HISTORY_L}'
+                - 1d
           tags:
             - tag: Application
               value: General
@@ -174,7 +172,6 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: .1.3.6.1.2.1.1.5.0
           key: sysName
-          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           description: 'An administratively-assigned name for this managed node. By convention, this is the node''s fully-qualified domain name.  If the name is unknown, the value is the zero-length string.'
@@ -182,7 +179,7 @@ zabbix_export:
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - '{$WG_HISTORY_L}'
+                - 1d
           tags:
             - tag: Application
               value: General
@@ -224,7 +221,7 @@ zabbix_export:
           type: DEPENDENT
           key: wgOShttpCheck
           delay: '0'
-          history: '{$WG_HISTORY_S}'
+          history: 1d
           trends: '0'
           value_type: CHAR
           preprocessing:
@@ -281,7 +278,7 @@ zabbix_export:
                   
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - '{$WG_HISTORY_S}'
+                - 23h
           master_item:
             key: sysDescr
           triggers:
@@ -295,7 +292,6 @@ zabbix_export:
           snmp_oid: .1.3.6.1.4.1.3097.6.3.1.0
           key: wgSoftwareVersion
           delay: 1h
-          history: '{$WG_HISTORY_L}'
           trends: '0'
           value_type: CHAR
           inventory_link: SOFTWARE
@@ -306,7 +302,7 @@ zabbix_export:
                 - \1
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - '{$WG_HISTORY_L}'
+                - 1d
         - uuid: 32b908f609804e5bab00cae2a71bbaa3
           name: 'CPU Utilization'
           type: SNMP_AGENT
@@ -411,7 +407,6 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '.1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
               key: 'wg.net.if.status[ifOperStatus.{#SNMPINDEX}]'
-              history: '{$WG_HISTORY_M}'
               trends: '0'
               description: |
                 MIB: IF-MIB
@@ -427,7 +422,7 @@ zabbix_export:
               preprocessing:
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
-                    - '{$WG_HISTORY_M}'
+                    - 1d
               tags:
                 - tag: Application
                   value: Interfaces
@@ -447,7 +442,7 @@ zabbix_export:
               snmp_oid: '1.3.6.1.2.1.2.2.1.3.{#SNMPINDEX}'
               key: 'wg.net.if.type[ifType.{#SNMPINDEX}]'
               delay: 1h
-              history: '{$WG_HISTORY_S}'
+              history: 15d
               trends: '0'
               description: |
                 MIB: IF-MIB
@@ -459,7 +454,7 @@ zabbix_export:
               preprocessing:
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
-                    - '{$WG_HISTORY_S}'
+                    - 1d
               tags:
                 - tag: interface
                   value: '{#IFDESCR}'
@@ -620,15 +615,6 @@ zabbix_export:
         - macro: '{$WG_DOWNLOAD_URL}'
           value: 'https://software.watchguard.com/SoftwareDownloads?current=true&familyId='
           description: 'WG website download product page'
-        - macro: '{$WG_HISTORY_L}'
-          value: 90d
-          description: 'History long'
-        - macro: '{$WG_HISTORY_M}'
-          value: 1w
-          description: 'History medium'
-        - macro: '{$WG_HISTORY_S}'
-          value: 1d
-          description: 'History short'
       valuemaps:
         - uuid: c8e640e6eede45f496cbaa219979e95e
           name: 'IF-MIB::ifOperStatus'
