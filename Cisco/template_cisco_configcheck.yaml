@@ -64,7 +64,7 @@ zabbix_export:
               recovery_mode: NONE
               name: 'Running config has changed'
               opdata: 'Running config has changed'
-              priority: WARNING
+              priority: INFO
               description: |
                 Running config has changed since last check.
                 Must be closed manually
