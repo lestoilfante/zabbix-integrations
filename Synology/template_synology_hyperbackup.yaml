@@ -399,7 +399,7 @@ zabbix_export:
           description: 'rest endpoint'
         -
           macro: '{$SYNO.REST.API.BACKUP.LLD_INT}'
-          value: 1m
+          value: 15m
           description: 'LLD Interval'
         -
           macro: '{$SYNO.REST.API.PORT}'
