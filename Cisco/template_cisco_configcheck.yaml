@@ -1,13 +1,11 @@
 zabbix_export:
   version: '6.0'
-  date: '2023-05-06T13:29:47Z'
+  date: '2024-03-14T09:08:38Z'
   groups:
-    -
-      uuid: 36bff6c29af64692839d077febfc7079
+    - uuid: 36bff6c29af64692839d077febfc7079
       name: 'Templates/Network devices'
   templates:
-    -
-      uuid: 0f99c897a2fd47228eaf6be4117c41da
+    - uuid: 0f99c897a2fd47228eaf6be4117c41da
       template: 'Cisco IOS Config Check'
       name: 'Cisco IOS Config Check'
       description: |
@@ -21,11 +19,9 @@ zabbix_export:
         ## License
         GNU General Public License version 3 (GPLv3)
       groups:
-        -
-          name: 'Templates/Network devices'
+        - name: 'Templates/Network devices'
       items:
-        -
-          uuid: bef51d3498144d85b19630cd4f8584b0
+        - uuid: bef51d3498144d85b19630cd4f8584b0
           name: 'Running Config'
           type: SSH
           key: 'ssh.run[showRunFull,{$SSH_IP}]'
@@ -43,23 +39,21 @@ zabbix_export:
             	file privilege 5
             	privilege exec level 5 show running-config view full
           preprocessing:
-            -
-              type: JAVASCRIPT
+            - type: JAVASCRIPT
               parameters:
                 - |
-                  var conf = value.match(/^! Last configuration[\s\S]*/gm);
+                  const regex = /^! Last configuration[\s\S]*?!\n/gm;
+                  var conf = value.match(regex);
                   if(conf)
-                  	return '!\n' + conf[0].replace(/\r\n/gm,'\n');
+                  	return value.replace(regex,'').replace(/\r\n/gm,'\n');
           triggers:
-            -
-              uuid: 7c654fbdb544480cb9a70d075e40398d
+            - uuid: 7c654fbdb544480cb9a70d075e40398d
               expression: 'nodata(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}],25h)=1'
               name: 'Running config can''t be retrieved'
               opdata: 'No data has been retrieved in last 24 hours'
               priority: WARNING
               description: 'No data has been retrieved lately, can be a connectivity issue'
-            -
-              uuid: e928a955f6634c7f910b554c13108b3c
+            - uuid: e928a955f6634c7f910b554c13108b3c
               expression: 'last(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}],#1)<>last(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}],#2) and length(last(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}]))>0'
               recovery_mode: NONE
               name: 'Running config has changed'
@@ -70,12 +64,9 @@ zabbix_export:
                 Must be closed manually
               manual_close: 'YES'
       macros:
-        -
-          macro: '{$SSH_IP}'
+        - macro: '{$SSH_IP}'
           description: 'Ssh IP'
-        -
-          macro: '{$SSH_PASS}'
+        - macro: '{$SSH_PASS}'
           description: 'Ssh password'
-        -
-          macro: '{$SSH_USER}'
+        - macro: '{$SSH_USER}'
           description: 'Ssh user'
