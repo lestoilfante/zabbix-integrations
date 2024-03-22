@@ -25,7 +25,8 @@ zabbix_export:
           name: 'Running Config'
           type: SSH
           key: 'ssh.run[showRunFull,{$SSH_IP}]'
-          delay: '0;1d/1-7,00:00-24:00'
+          delay: '{$SSH_CFG.INTVAL}'
+          history: '{$SSH_CFG.HISTORY}'
           trends: '0'
           value_type: TEXT
           params: 'show running-config view full'
@@ -39,18 +40,21 @@ zabbix_export:
             	file privilege 5
             	privilege exec level 5 show running-config view full
           preprocessing:
-            - type: JAVASCRIPT
+            - type: STR_REPLACE
               parameters:
-                - |
-                  const regex = /^! Last configuration[\s\S]*?!\n/gm;
-                  var conf = value.match(regex);
-                  if(conf)
-                  	return value.replace(regex,'').replace(/\r\n/gm,'\n');
+                - \r\n
+                - \n
+            - type: REGEX
+              parameters:
+                - '.*(![[:space:]]version \d[\s\S[:space:]]*)'
+                - \1
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - '{$SSH_CFG.HEARTBIT}'
           triggers:
             - uuid: 7c654fbdb544480cb9a70d075e40398d
-              expression: 'nodata(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}],25h)=1'
-              name: 'Running config can''t be retrieved'
-              opdata: 'No data has been retrieved in last 24 hours'
+              expression: 'nodata(/Cisco IOS Config Check/ssh.run[showRunFull,{$SSH_IP}],{$SSH_CFG.WARN})=1'
+              name: 'Running config not retrieved'
               priority: WARNING
               description: 'No data has been retrieved lately, can be a connectivity issue'
             - uuid: e928a955f6634c7f910b554c13108b3c
@@ -64,6 +68,18 @@ zabbix_export:
                 Must be closed manually
               manual_close: 'YES'
       macros:
+        - macro: '{$SSH_CFG.HEARTBIT}'
+          value: 2d
+          description: 'Keep lower then {$SSH_CFG.WARN}'
+        - macro: '{$SSH_CFG.HISTORY}'
+          value: 60d
+          description: 'History to keep'
+        - macro: '{$SSH_CFG.INTVAL}'
+          value: 24h
+          description: 'Config retrieval frequency'
+        - macro: '{$SSH_CFG.WARN}'
+          value: 3d
+          description: 'nodata() trigger'
         - macro: '{$SSH_IP}'
           description: 'Ssh IP'
         - macro: '{$SSH_PASS}'
