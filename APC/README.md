@@ -8,6 +8,7 @@ This Zabbix template collects information from the APC SmartConnect Cloud platfo
 
 * **Zabbix version 6.0 or later**
 * **External script `APC-ScrapConnect.php` (https://github.com/lestoilfante/APC-ScrapConnect)**
+* **Two-factor authentication (2FA) must be disabled on SmartConnect account**
 
 ### Items
 * **Set inventory type**
@@ -24,7 +25,9 @@ GNU General Public License version 3 (GPLv3)
 
 ## Configuration
 
-Import template `template_APC_SmartConnect.yaml`, assign to UPS Host, set the macros `{$APCSC.USER}` `{$APCSC.PASSWORD}` as per SmartConnect credentials and… and stop, done! The automated discovery will look for the first device registered on SmartConnect that has an IP equal to Host interface defined in Zabbix, or alternatively, if you have multiple devices with the same IP, set the macro `{$APC.SERIAL}` to proceed with discovery by serial number.
+1. Download the `APC-ScrapConnect.php` script and save it to the `ExternalScripts` folder on your Zabbix Server or Proxy (/usr/lib/zabbix/externalscripts/APC-ScrapConnect.php).
+2. Edit `APC-ScrapConnect.php` and add a new line with `#!/usr/bin/php` at the top of the file to allow it to be run directly from the command line.
+3. Import template `template_APC_SmartConnect.yaml`, assign to UPS Host, set the macros `{$APCSC.USER}` `{$APCSC.PASSWORD}` as per SmartConnect credentials and… and stop, done! The automated discovery will look for the first device registered on SmartConnect that has an IP equal to Host interface defined in Zabbix, or alternatively, if you have multiple devices with the same IP, set the macro `{$APC.SERIAL}` to proceed with discovery by serial number.
 
 ### Macros used
 
