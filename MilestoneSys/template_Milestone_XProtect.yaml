@@ -1,0 +1,2299 @@
+zabbix_export:
+  version: '6.0'
+  date: '2024-05-07T09:36:04Z'
+  groups:
+    - uuid: d37f71c7e3f7469bab645852a69a2018
+      name: 'Templates/Video surveillance'
+  templates:
+    - uuid: c014e28864444d5e9671cac4549d5ac6
+      template: 'Milestone XProtect'
+      name: 'Milestone XProtect'
+      description: |
+        Template Milestone XProtect by HTTP
+        
+        Mandatory macro:
+        {$MILESTONE.USER}
+        {$MILESTONE.PASSWORD}
+        User rights needed:
+          Management Server <Status API>
+          Device <Read>
+          Allow Web Client login
+        
+        ## Author
+        Copyright (C) 2024 lestoilfante (https://github.com/lestoilfante)
+                
+        ## License
+        GNU General Public License version 3 (GPLv3)
+      groups:
+        - name: 'Templates/Video surveillance'
+      items:
+        - uuid: bb963871f84a4907bed91c5beef1c214
+          name: 'Milestone: XProtect Discovery'
+          type: SCRIPT
+          key: mxp.info
+          delay: '{$MILESTONE.LLD_FREQ}'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          params: |
+            var MXP = {
+                params: {},
+                zbx: {
+                    instance: null,
+                    guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
+                    version: '0.9a',
+                    name: 'Milestone ZBX',
+                    manufacturer: 'https://github.com/lestoilfante'
+                },
+                Product: {
+                    Name: null,
+                    Version: null,
+                    Slc: null
+                },
+                Uri: {
+                    Mgm: null,
+                    Idp: null,
+                    Api: null,
+                    Soap: {
+                        SrvCommand: null,
+                        SrvCommandOauth: null,
+                        SrvRegistrationService: null,
+                        SrvRegistrationServiceOAuth: null
+                    }
+                },
+                Srv: {
+                    Mgm: [],
+                    Rec: [],
+                    Mob: [],
+                    Svc: []
+                },
+                Hw: {
+                    Cam: []
+                },
+                Auth: {
+                    OAuth: {
+                        Token: null,
+                        Expiration: null
+                    },
+                    XProtect: {
+                        Token: null,
+                        Expiration: null
+                    }
+                },
+                _pvt: {
+                    request: null,
+                    response: null,
+                },
+                
+                requestApi: function (url, data) {
+                    this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                    if (!this._pvt.response) this._pvt.response = new HttpRequest();
+            
+                    if (typeof data === 'undefined' || data === null) {
+                        data = '';
+                    }
+            
+                    this._pvt.request.addHeader("Accept: application/json");
+                    if (this.Auth.OAuth.Token) this._pvt.request.addHeader("Authorization: Bearer " + this.Auth.OAuth.Token);
+            
+                    if (data !== '') {
+                        this._pvt.request.addHeader("Content-Type: application/x-www-form-urlencoded");
+                        this._pvt.response = this._pvt.request.post(url, data);
+                    }
+                    else {
+                        this._pvt.response = this._pvt.request.get(url);
+                    }
+            
+                    if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                        throw 'API request failed with status code ' + this._pvt.request.getStatus() + ': ' + url;
+                    }
+            
+                    try {
+                        return JSON.parse(this._pvt.response);
+                    }
+                    catch (error) {
+                        throw 'Failed to parse response received from API svc';
+                    }
+                },
+            
+                requestSoap: function (soapAction, data, uri) {
+                    this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                    if (!this._pvt.response) this._pvt.response = new HttpRequest();
+            
+                    if (typeof data === 'undefined' || data === null) {
+                        data = '';
+                    }
+            
+                    this._pvt.request.addHeader("Content-Type: text/xml");
+                    this._pvt.request.addHeader("Authorization: Bearer " + this.Auth.OAuth.Token);
+                    this._pvt.request.addHeader(soapAction);
+            
+                    this._pvt.response = this._pvt.request.post((uri) ? uri : this.Uri.Soap.SrvCommandOauth, data);
+            
+                    if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                        throw 'SOAP request failed with status code ' + this._pvt.request.getStatus();
+                    }
+            
+                    try {
+                        return JSON.parse(XML.toJson(this._pvt.response));
+                    }
+                    catch (error) {
+                        throw 'Failed to parse response received from SOAP svc';
+                    }
+                },
+            
+                authenticate: function () {
+                    if(!this.Uri.Idp){
+                        throw 'Idp uri not found';
+                    }
+                    try {
+                        var r =  this.requestApi(
+                            this.Uri.Idp + '/connect/token', 
+                            'grant_type=password&username=' + encodeURIComponent(this.params.user) + '&client_id=GrantValidatorClient&password=' + encodeURIComponent(this.params.password)
+                        );
+                        if (r.hasOwnProperty('access_token') && r.access_token !== '') {
+                            this.Auth.OAuth.Token = r.access_token;
+                            // default expiration is typically 3600 secs
+                            this.Auth.OAuth.Expiration = Math.floor(Date.now() / 1000) + r.expires_in;
+                        }
+                        else {
+                            throw 'failed token acquisition';
+                        }
+                    }
+                    catch (error) {
+                        throw 'Authentication error: ' + error;
+                    }
+                },
+            
+                authenticateSOAP: function () {
+                    var soapAction, soapMsg;
+                    soapAction = "SOAPAction: http://videoos.net/2/XProtectCSServerCommand/IServerCommandService/Login";
+                    soapMsg = "<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'>" +
+                    "<s:Body>" +
+                    "<Login xmlns='http://videoos.net/2/XProtectCSServerCommand'>" +
+                    "<instanceId>" + this.zbx.guid + "</instanceId>" +
+                    "<currentToken />" +
+                    "</Login>" +
+                    "</s:Body>" +
+                    "</s:Envelope>";
+                    try {
+                        var r =  this.requestSoap(soapAction, soapMsg);
+                        this.Auth.XProtect.Token = r.Envelope.Body.LoginResponse.LoginResult.Token;
+                        // default TimeToLive is typically 14400000000 microsecs (4 hr), must renew within this time
+                        this.Auth.XProtect.Expiration = Math.floor(Date.now() / 1000) + (r.Envelope.Body.LoginResponse.LoginResult.TimeToLive.MicroSeconds / 1000000);
+                        // Authentication is already done, try also RegisterIntegration
+                        try {
+                            soapAction = "SOAPAction: http://videoos.net/2/XProtectCSServerCommand/IServerCommandService/RegisterIntegration";
+                            soapMsg = "<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'>" +
+                            "<s:Body>" +
+                            "<RegisterIntegration xmlns='http://videoos.net/2/XProtectCSServerCommand'>" +
+                            "<token>" + this.Auth.XProtect.Token + "</token>" +
+                            "<instanceId>" + this.zbx.instance + "</instanceId>" +
+                            "<integrationId>" + this.zbx.guid + "</integrationId>" +
+                            "<integrationVersion>" + this.zbx.version + "</integrationVersion>" +
+                            "<integrationName>" + this.zbx.name + "</integrationName>"  +
+                            "<manufacturerName>" + this.zbx.manufacturer + "</manufacturerName>" +
+                            "</RegisterIntegration>" +
+                            "</s:Body>" +
+                            "</s:Envelope>";
+                            this.requestSoap(soapAction, soapMsg);
+                        }
+                        catch (error) {
+                            // RegisterIntegration is encouraged but not mandatory so avoiding fatal error here 
+                        }
+                    }
+                    catch (error) {
+                        throw 'SOAP Authentication error: ' + error;
+                    }
+                },
+            
+                getUris: function (wellKnownUris) {
+                    var result = this.requestApi(wellKnownUris);
+                    if (result.hasOwnProperty('SecureManagementServer') && result.SecureManagementServer !== '') {
+                        this.Uri.Mgm = result.SecureManagementServer;
+                    } else {
+                        this.Uri.Mgm = result.UnsecureManagementServer;
+                    }
+                    this.Uri.Idp = result.IdentityProvider;
+                    this.Uri.Api = (result.ApiGateways && result.ApiGateways.length > 0) ? result.ApiGateways[0] : null;
+                    this.Uri.Soap.SrvCommand = this.Uri.Mgm + "ManagementServer/ServerCommandService.svc",
+                    this.Uri.Soap.SrvCommandOauth = this.Uri.Mgm + "ManagementServer/ServerCommandServiceOauth.svc";
+                    this.Uri.Soap.SrvRegistrationService = this.Uri.Mgm + "ManagementServer/ServiceRegistrationService.svc",
+                    this.Uri.Soap.SrvRegistrationServiceOAuth = this.Uri.Mgm + "ManagementServer/ServiceRegistrationServiceOAuth.svc";
+                    return this.Uri;
+                },
+            
+                getInfo: function () {
+                    var soapAction, soapMsg;
+                    soapAction = "SOAPAction: http://videoos.net/2/XProtectCSServerCommand/IServerCommandService/GetProductInfo";
+                    soapMsg = "<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'>" +
+                    "<s:Body>" +
+                    "<GetProductInfo xmlns='http://videoos.net/2/XProtectCSServerCommand'>" +
+                    "</GetProductInfo>" +
+                    "</s:Body>" +
+                    "</s:Envelope>";
+                    try {
+                        var r = this.requestSoap(soapAction, soapMsg);
+                        this.Product.Name = r.Envelope.Body.GetProductInfoResponse.GetProductInfoResult.ProductName;
+                        this.Product.Version = r.Envelope.Body.GetProductInfoResponse.GetProductInfoResult.MajorVersion + "." +
+                            r.Envelope.Body.GetProductInfoResponse.GetProductInfoResult.MinorVersion + "." +
+                            r.Envelope.Body.GetProductInfoResponse.GetProductInfoResult.ServiceVersion;
+                        this.Product.Slc = r.Envelope.Body.GetProductInfoResponse.GetProductInfoResult.SLC;
+                        return r;
+                    }
+                    catch (error) {
+                        throw error;
+                    }
+                },
+                getRegisteredServices: function () {
+                    var soapAction, soapMsg;
+                    soapAction = "SOAPAction: http://schemas.videoos/ServiceRegistrationService/2008/06/Vmo/01/IServiceRegistrationService/GetServices";
+                    soapMsg = "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ns='http://schemas.videoos/ServiceRegistrationService/2008/06/Vmo/01'>" +
+                    "<soapenv:Header/>" +
+                    "<soapenv:Body>" +
+                    "<ns:GetServices/>" +
+                    "</soapenv:Body>" +
+                    "</soapenv:Envelope>";
+                    try {
+                        var r = this.requestSoap(soapAction, soapMsg, this.Uri.Soap.SrvRegistrationServiceOAuth);
+                        return r.Envelope.Body.GetServicesResponse.GetServicesResult.ServiceInfo;
+                    }
+                    catch (error) {
+                        throw error;
+                    }
+                },
+            
+                getManagementServers: function () {
+                    var url = this.Uri.Api + 'rest/v1/sites';
+                    return this.requestApi(url);
+                },
+                getRecordingServers: function () {
+                    var url = this.Uri.Api + 'rest/v1/recordingServers';
+                    return this.requestApi(url);
+                },
+                getRecordingServerStorages: function (recId) {
+                    var url = this.Uri.Api + 'rest/v1/recordingServers/' + recId + '/storages';
+                    return this.requestApi(url);
+                },
+                getRecordingServerStorageArchives: function (storageId) {
+                    var url = this.Uri.Api + 'rest/v1/storages/' + storageId + '/archiveStorages';
+                    return this.requestApi(url);
+                },
+                getCameras: function () {
+                    var url = this.Uri.Api + 'rest/v1/cameras';
+                    return this.requestApi(url);
+                },
+                /* Some services are defined as mip items and can be discovered on endpoint rest/v1/mipKinds 
+                Known items:
+                Mobile Servers      9947f340-397c-483b-9e03-f27253f7f403
+                Customer Dashboard  4d2859d2-90d9-4192-afc3-3c435241af0e
+                Analytics Options   4de695a0-b30a-4f0f-b25e-ee353528dc02
+                */
+                getMobileServers: function () {
+                    var url = this.Uri.Api + 'rest/v1/mipKinds/9947f340-397c-483b-9e03-f27253f7f403/mipItems';
+                    return this.requestApi(url);
+                },
+            
+                stringify: function () {
+                    delete this.params;
+                    delete this.zbx;
+                    delete this._pvt;
+                    return JSON.stringify(this);
+                }
+            
+            };
+            
+            var params, lld;
+            
+            try {
+                MXP.params = JSON.parse(value);
+                MXP.zbx.instance = MXP.params.instance;
+                // Get environment URIs, no need to authenticate
+                MXP.getUris(MXP.params.wellKnownUris);
+            
+                // Authenticate
+                MXP.authenticate();
+                MXP.authenticateSOAP();
+            
+                // Collect all info
+                MXP.getInfo();
+                var mgmServers = MXP.getManagementServers();
+                MXP.Srv.Mgm = mgmServers.array.map(function(obj) {
+                    return {
+                        displayName: obj.displayName,
+                        id: obj.id,
+                        computerName: obj.computerName,
+                        domainName: obj.domainName,
+                        version: obj.version
+                    };
+                });
+                var recServers = MXP.getRecordingServers();
+                MXP.Srv.Rec = recServers.array.map(function(objR) {
+                    var _storages = MXP.getRecordingServerStorages(objR.id);
+                    return {
+                        displayName: objR.displayName,
+                        id: objR.id,
+                        enabled: objR.enabled,
+                        uri: objR.webServerUri + "recorderstatusservice/recorderstatusservice2.asmx",
+                        storages: _storages.array.map(function(objS) {
+                            var _archives = MXP.getRecordingServerStorageArchives(objS.id);
+                            return {
+                                displayName: objS.displayName,
+                                id: objS.id,
+                                path: objS.diskPath,
+                                archives: _archives.array.map(function(objA) {
+                                    return {
+                                        displayName: objA.displayName,
+                                        id: objA.id,
+                                        path: objA.diskPath
+                                    }
+                                })
+                            }
+                        })
+                    };
+                });
+                var cameras = MXP.getCameras();
+                MXP.Hw.Cam = cameras.array.map(function(obj) {
+                    return {
+                        displayName: obj.displayName,
+                        id: obj.id,
+                        enabled: obj.enabled,
+                        storageId: obj.recordingStorage.id
+                    };
+                });
+                var mobServers = MXP.getMobileServers();
+                MXP.Srv.Mob = mobServers.array.map(function(obj) {
+                    var connProto = (obj.AccessServerHttps.toLowerCase() == "true") ? 'https://' : 'http://';
+                    return {
+                        displayName: obj.displayName,
+                        id: obj.ServerId,
+                        uri: connProto + obj.AccessServerIp + ":" + obj.AccessServerPort,
+                        version: obj.Version,
+                        enabled: obj.enabled
+                    };
+                });
+                var registeredSvcs = MXP.getRegisteredServices();
+                MXP.Srv.Svc = registeredSvcs.map(function(obj) {
+                    return {
+                        name: obj.name,
+                        instance: obj.instance,
+                        uri: obj.uri.string,
+                        type: obj.type,
+                        enabled: obj.enabled
+                    };
+                });
+                return MXP.stringify();
+            }
+            catch (error) {
+                return "ERROR: " + error.toString();
+            }
+          description: 'Retrieves data from Milestone Management Server feeding discovered items'
+          timeout: '60'
+          parameters:
+            - name: instance
+              value: '{$MILESTONE.ID}'
+            - name: password
+              value: '{$MILESTONE.PASSWORD}'
+            - name: user
+              value: '{$MILESTONE.USER}'
+            - name: wellKnownUris
+              value: '{$MILESTONE.CONN}://{HOST.CONN}/api/.well-known/uris'
+        - uuid: 0fa8563001e8473c98690c4cbda03042
+          name: 'Milestone: Product name'
+          type: DEPENDENT
+          key: mxp.info.pn
+          delay: '0'
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Product.Name
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: mxp.info
+        - uuid: 5dffa63e96a7426188c9735fc21a8267
+          name: 'Milestone: Product version'
+          type: DEPENDENT
+          key: mxp.info.pv
+          delay: '0'
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Product.Version
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: mxp.info
+        - uuid: f48dd2eb3d464421b67495b1feebc7fa
+          name: 'Milestone: Product SLC'
+          type: DEPENDENT
+          key: mxp.info.slc
+          delay: '0'
+          trends: '0'
+          value_type: CHAR
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Product.Slc
+              error_handler: DISCARD_VALUE
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: mxp.info
+        - uuid: 7d29dc92d52a46c1987fa2de21d6cca3
+          name: 'Milestone: XProtect Discovery status'
+          type: DEPENDENT
+          key: mxp.info.status
+          delay: '0'
+          history: 7d
+          trends: '0'
+          value_type: CHAR
+          description: 'Milestone Management Server data retrieval status'
+          preprocessing:
+            - type: MATCHES_REGEX
+              parameters:
+                - ^ERROR
+              error_handler: CUSTOM_VALUE
+              error_handler_params: OK
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: mxp.info
+          triggers:
+            - uuid: cf26f5f2f5db4774a78faec307ed6411
+              expression: 'last(/Milestone XProtect/mxp.info.status)<>"OK"'
+              name: 'Milestone: XProtect Discovery status: error returned'
+              priority: WARNING
+              description: |
+                Some error occurred during data retrieval from Milestone Management Server.
+                In case of repeated failure almost all items within this template will be subject to failure.
+      discovery_rules:
+        - uuid: daa04b42d02843bb8b816fa663ff3f3b
+          name: Archives
+          type: DEPENDENT
+          key: mxp.discovery.archives
+          delay: '0'
+          item_prototypes:
+            - uuid: 5750888924bd477dbb95cbb7601253e3
+              name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} space available'
+              type: DEPENDENT
+              key: 'mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.sa]'
+              delay: '0'
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.StorageId == ''{#REC_ARCHIVE_ID}'')]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var storageInfo = JSON.parse(value);
+                      var storage = storageInfo[0];
+                      var usedSpace = parseFloat(storage.UsedSpaceInBytes);
+                      var freeSpace = parseFloat(storage.FreeSpaceInBytes);
+                      var totalSpace = usedSpace + freeSpace;
+                      var availablePercentage = (freeSpace / totalSpace) * 100;
+                      return parseInt(availablePercentage);
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}]'
+              tags:
+                - tag: component
+                  value: archive
+              trigger_prototypes:
+                - uuid: ad1650a0a9e04428b3f0400409e23da4
+                  expression: 'last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.sa])<{$MILESTONE.ARCHIVE.WARN}'
+                  name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} space available is low'
+                  opdata: 'Space available: {ITEM.VALUE}%'
+                  priority: WARNING
+            - uuid: 5451000010b44170b05e17d2b9c59f8d
+              name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status'
+              type: DEPENDENT
+              key: 'mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status]'
+              delay: '0'
+              valuemap:
+                name: 'Storage status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.StorageId == ''{#REC_ARCHIVE_ID}'')]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var storageInfo = JSON.parse(value);
+                      var storage = storageInfo[0];
+                      var available = storage.Available === "true";
+                      var mounted = storage.Mounted === "true";
+                      if (!mounted) {
+                        return 1;
+                      }
+                      if (!available) {
+                        return 2;
+                      }
+                      return 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}]'
+              tags:
+                - tag: component
+                  value: archive
+              trigger_prototypes:
+                - uuid: 1df6382f646a4bf8ad97364dc032805f
+                  expression: 'last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status])<> 0'
+                  name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status'
+                  opdata: 'Archive state is {ITEM.VALUE}'
+                  priority: HIGH
+            - uuid: a112820e08524e9b96a5e42a918501c4
+              name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME}'
+              type: SCRIPT
+              key: 'mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}]'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              params: |
+                var MXP = {
+                    Auth: {
+                        XProtect: {
+                            Token: '{#TOKEN}',
+                            Expiration: '{#TOKEN_EXP}'
+                        }
+                    },
+                    Rec : {
+                        Id: '{#REC_ID}',
+                        Uri: '{#REC_URI}'
+                    },
+                    _pvt: {
+                        request: null,
+                        response: null,
+                    },
+                    
+                    requestSoap: function (uri, soapAction, data) {
+                        this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                        if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                
+                        this._pvt.request.addHeader("Content-Type: application/soap+xml;charset=UTF-8;action='" + soapAction + "'");
+                            
+                        this._pvt.response = this._pvt.request.post(uri, data);
+                
+                        if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                            throw 'SOAP request failed with status code ' + this._pvt.request.getStatus();
+                        }
+                
+                        try {
+                            return JSON.parse(XML.toJson(this._pvt.response));
+                        }
+                        catch (error) {
+                            throw 'Failed to parse response received from SOAP svc';
+                        }
+                    },
+                    getArchiveStorageStatus: function () {
+                        var soapAction, soapMsg;
+                        soapAction = "http://videoos.net/2/XProtectCSRecorderStatus2/GetArchiveStorageStatus";
+                        soapMsg = "<soap:Envelope xmlns:soap='http://www.w3.org/2003/05/soap-envelope' xmlns:xpr='http://videoos.net/2/XProtectCSRecorderStatus2'>" +
+                        "<soap:Header/>" +
+                        "<soap:Body>" +
+                        "<xpr:GetArchiveStorageStatus>" +
+                        "<xpr:token>" + this.Auth.XProtect.Token + "</xpr:token>" +
+                        "</xpr:GetArchiveStorageStatus>" +
+                        "</soap:Body>" +
+                        "</soap:Envelope>";
+                        try {
+                            return this.requestSoap(this.Rec.Uri, soapAction, soapMsg);
+                        }
+                        catch (error) {
+                            throw error;
+                        }
+                    },
+                }
+                try {
+                    return JSON.stringify(MXP.getArchiveStorageStatus());
+                }
+                catch(e) {
+                
+                }
+              description: |
+                Gets archive storage status.
+                Retrieved directly from recording server.
+              timeout: 30s
+              tags:
+                - tag: component
+                  value: archive
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = [];
+                  
+                  MXP.Srv.Rec.forEach(function(rec) {
+                      rec.storages.forEach(function(storage) {
+                          storage.archives.forEach(function(archive){
+                              var obj = {
+                                  "{#REC_DNAME}": rec.displayName,
+                                  "{#REC_ID}": rec.id,
+                                  "{#REC_URI}": rec.uri,
+                                  "{#REC_ARCHIVE_DNAME}": archive.displayName,
+                                  "{#REC_ARCHIVE_ID}": archive.id,
+                                  "{#REC_ARCHIVE_PATH}": archive.path,
+                                  "{#TOKEN}": MXP.Auth.XProtect.Token,
+                                  "{#TOKEN_EXP}": MXP.Auth.XProtect.Expiration
+                              };
+                              lld.push(obj);
+                          })
+                      });
+                  });
+                  
+                  return JSON.stringify(lld);
+        - uuid: 6e5fcbc8c1ee4738af157da75920cffd
+          name: Cameras
+          type: DEPENDENT
+          key: mxp.discovery.cameras
+          delay: '0'
+          description: 'Discovers all enabled cameras.'
+          item_prototypes:
+            - uuid: 70ffcab3c21741298188995cc51e6549
+              name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status'
+              type: SCRIPT
+              key: 'mxp.cam[{#CAM_ID}.status]'
+              history: 30d
+              params: |
+                var MXP = {
+                    Auth: {
+                        XProtect: {
+                            Token: '{#TOKEN}',
+                            Expiration: '{#TOKEN_EXP}'
+                        }
+                    },
+                    Rec : {
+                        Id: '{#REC_ID}',
+                        Uri: '{#REC_URI}'
+                    },
+                    _pvt: {
+                        request: null,
+                        response: null,
+                    },
+                    
+                    requestSoap: function (uri, soapAction, data) {
+                        this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                        if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                
+                        this._pvt.request.addHeader("Content-Type: application/soap+xml;charset=UTF-8;action='" + soapAction + "'");
+                            
+                        this._pvt.response = this._pvt.request.post(uri, data);
+                
+                        if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                            throw 'SOAP request failed with status code ' + this._pvt.request.getStatus();
+                        }
+                
+                        try {
+                            return JSON.parse(XML.toJson(this._pvt.response));
+                        }
+                        catch (error) {
+                            throw 'Failed to parse response received from SOAP svc';
+                        }
+                    },
+                    getCurrentDeviceStatus: function (devId) {
+                        var soapAction, soapMsg;
+                        soapAction = "http://videoos.net/2/XProtectCSRecorderStatus2/GetCurrentDeviceStatus";
+                        soapMsg = "<soap:Envelope xmlns:soap='http://www.w3.org/2003/05/soap-envelope' xmlns:xpr='http://videoos.net/2/XProtectCSRecorderStatus2'>" +
+                        "<soap:Header/>" +
+                        "<soap:Body>" +
+                        "<xpr:GetCurrentDeviceStatus>" +
+                        "<xpr:token>" + this.Auth.XProtect.Token + "</xpr:token>" +
+                        "<xpr:deviceIds>" + 
+                        "<xpr:guid>" + devId + "</xpr:guid>" +
+                        "</xpr:deviceIds>" +
+                        "</xpr:GetCurrentDeviceStatus>" +
+                        "</soap:Body>" +
+                        "</soap:Envelope>";
+                        try {
+                            return this.requestSoap(this.Rec.Uri, soapAction, soapMsg);
+                        }
+                        catch (error) {
+                            throw error;
+                        }
+                    },
+                }
+                try {
+                    return JSON.stringify(MXP.getCurrentDeviceStatus('{#CAM_ID}'));
+                }
+                catch(e) {
+                
+                }
+              description: |
+                Gets camera status from recording server.
+                Status values:
+                0 - Ok
+                1 - Connection to device failed
+                2 - Device without active license
+                3 - Generic device error
+                4 - Media overflow, server is receiving media at a faster rate than the rate it can process and write to the disk
+                5 - Media stream data is being stored at best effort, but some frames will be missed
+              valuemap:
+                name: 'Camera status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.DeviceId == ''{#CAM_ID}'')]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var status = JSON.parse(value);
+                      var camStatus = status[0];
+                      var enabled = camStatus.Enabled === "true";
+                      if (enabled) {
+                      	var error = camStatus.Error === "true";
+                      	var notLicensed = camStatus.ErrorNotLicensed === "true";
+                      	var noConnection = camStatus.ErrorNoConnection === "true";
+                      	var overflow = camStatus.ErrorOverflow === "true";
+                      	var gop = camStatus.ErrorWritingGop=== "true";
+                      	if (noConnection) {
+                      		return 1;
+                      	}
+                      	if (notLicensed ) {
+                      		return 2;
+                      	}
+                      	if (error) {
+                      		return 3;
+                      	}
+                      	if (overflow) {
+                      		return 4;
+                      	}
+                      	if (gop) {
+                      		return 5;
+                      	}
+                      }
+                      
+                      return 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              timeout: 30s
+              tags:
+                - tag: component
+                  value: camera
+              trigger_prototypes:
+                - uuid: 21a2b0ec935d477ea84d0edeb1474f0c
+                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])<> 0'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status'
+                  opdata: 'Camera state is {ITEM.VALUE}'
+                  priority: WARNING
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = [];
+                  
+                  function createStorageMap() {
+                    var storageMap = {};
+                    for (var i = 0; i < MXP.Srv.Rec.length; i++) {
+                      var recorder = MXP.Srv.Rec[i];
+                      for (var j = 0; j < recorder.storages.length; j++) {
+                        var storage = recorder.storages[j];
+                        storageMap[storage.id] = { recId: recorder.id, recDisplayName: recorder.displayName, recUri: recorder.uri };
+                      }
+                    }
+                    return storageMap;
+                  }
+                  
+                  var storage = createStorageMap();
+                  
+                  var lld = MXP.Hw.Cam.map(function(obj) {
+                      if (obj.enabled) {
+                          return {
+                              "{#CAM_DNAME}": obj.displayName,
+                              "{#CAM_ID}": obj.id,
+                              "{#REC_DNAME}": storage[obj.storageId].recDisplayName,
+                              "{#REC_ID}": storage[obj.storageId].recId,
+                              "{#REC_URI}": storage[obj.storageId].recUri,
+                              "{#TOKEN}": MXP.Auth.XProtect.Token,
+                              "{#TOKEN_EXP}": MXP.Auth.XProtect.Expiration
+                          };
+                      }
+                  });
+                  
+                  return JSON.stringify(lld);
+        - uuid: f6216955d0044fcca36999f783429778
+          name: 'Management Servers'
+          type: DEPENDENT
+          key: mxp.discovery.mgm
+          delay: '0'
+          item_prototypes:
+            - uuid: b40f36006ecc46428210a7176079b0d9
+              name: 'Milestone: [MGM] {#MGM_HOST} Certificate: Fingerprint'
+              type: DEPENDENT
+              key: 'mxp.mgm.cert[{#MGM_ID}.fingerprint]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sha1_fingerprint
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#MGM_SSL_HOSTNAME},{#MGM_SSL_PORT},{#MGM_SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: management
+              trigger_prototypes:
+                - uuid: a3e1fbb311db455e836bb297fc6b3641
+                  expression: 'last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint],#2)'
+                  name: 'Milestone: [MGM] {#MGM_HOST} Certificate: Fingerprint has changed'
+                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  priority: INFO
+                  description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
+                  manual_close: 'YES'
+            - uuid: 110babc370514c2c9421c35e6a251d58
+              name: 'Milestone: [MGM] {#MGM_HOST} Certificate: Expires on'
+              type: DEPENDENT
+              key: 'mxp.mgm.cert[{#MGM_ID}.notAfter]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'The date on which the certificate validity period ends.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.x509.not_after.timestamp
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#MGM_SSL_HOSTNAME},{#MGM_SSL_PORT},{#MGM_SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: management
+              trigger_prototypes:
+                - uuid: a2e8eb63cdac41b0b4af5d239c77ec27
+                  expression: '(last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
+                  name: 'Milestone: [MGM] {#MGM_HOST} Certificate: expires soon'
+                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  priority: WARNING
+                  description: 'The encryption certificate should be updated or it will become untrusted.'
+            - uuid: 9b319efa949344d59cd1a480835e08c6
+              name: 'Milestone: [MGM] {#MGM_HOST} sw version'
+              type: SCRIPT
+              key: 'mxp.mgm[{#MGM_ID}.ver]'
+              delay: 4h
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              params: 'return ''{#MGM_VER}'';'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              tags:
+                - tag: component
+                  value: management
+            - uuid: d24bb35691454547a34429ad3fd7eac6
+              name: 'Milestone: [MGM] {#MGM_HOST} Certificate: Get'
+              key: 'web.certificate.get[{#MGM_SSL_HOSTNAME},{#MGM_SSL_PORT},{#MGM_SSL_IP}]'
+              delay: 15m
+              history: '0'
+              trends: '0'
+              discover: NO_DISCOVER
+              value_type: TEXT
+              description: |
+                Management server certificate.
+                Returns the JSON with attributes of certificate.
+                
+                Requires Zabbix Agent 2 instance.
+                If above agent is not available on Milestone Management Server as workaround add a secondary Host Interface of Type Agent pointing to any available agent, i.e. 127.0.0.1 for Zabbix Server agent, then select this interface on Host's LLD rule.
+                
+                Hopefully this will be implemented as Simple check in the future (https://support.zabbix.com/browse/ZBXNEXT-8140)
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: management
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  var ssl = MXP.Uri.Mgm.toLowerCase().startsWith("https") ? true : false;
+                  
+                  var lld = MXP.Srv.Mgm.map(function(obj) {
+                      var item = {
+                          "{#MGM_HOST}": obj.computerName + '.' + obj.domainName,
+                          "{#MGM_ID}": obj.id,
+                          "{#MGM_VER}": obj.version
+                      };
+                      if (ssl) {
+                          item["{#SSL}"] = ssl;
+                          var match = MXP.Uri.Mgm.match(/:\/\/([^:\/]+)(?::(\d+))?(\/|$)/);
+                          item["{#MGM_SSL_PORT}"] = (match && match[2]) ? match[2] : "";
+                          item["{#MGM_SSL_HOSTNAME}"] = (match && match[1]) ? match[1] : "";
+                          item["{#MGM_SSL_IP}"] = (match && match[1] && match[1].match(/^\d+\.\d+\.\d+\.\d+$/)) ? match[1] : "";
+                      }
+                      return item;
+                  });
+                  
+                  return JSON.stringify(lld);
+          overrides:
+            - name: 'Certificate discover'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#SSL}'
+                    operator: EXISTS
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: LIKE
+                  value: 'Certificate: Get'
+                  discover: DISCOVER
+        - uuid: cca77d501a8148c8a3c494eb043b9294
+          name: 'Mobile Servers'
+          type: DEPENDENT
+          key: mxp.discovery.mob
+          delay: '0'
+          item_prototypes:
+            - uuid: ea913307800d493dadf033f5072f63f7
+              name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: Fingerprint'
+              type: DEPENDENT
+              key: 'mxp.mob.cert[{#MOB_ID}.fingerprint]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sha1_fingerprint
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#MOB_SSL_HOSTNAME},{#MOB_SSL_PORT},{#MOB_SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: mobile
+              trigger_prototypes:
+                - uuid: 59d7179d4d0c4982a6c5b45669620a9e
+                  expression: 'last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint],#2)'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: Fingerprint has changed'
+                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  priority: INFO
+                  description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
+                  manual_close: 'YES'
+            - uuid: 456c60808efa4fed928d2ef280fcfd64
+              name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: Expires on'
+              type: DEPENDENT
+              key: 'mxp.mob.cert[{#MOB_ID}.notAfter]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'The date on which the certificate validity period ends.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.x509.not_after.timestamp
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#MOB_SSL_HOSTNAME},{#MOB_SSL_PORT},{#MOB_SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: mobile
+              trigger_prototypes:
+                - uuid: 3555a12446504b8497f3f2f30ec4757c
+                  expression: '(last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: expires soon'
+                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  priority: WARNING
+                  description: 'The encryption certificate should be updated or it will become untrusted.'
+            - uuid: 9848a9d69ba640538ff3a22c5ef94762
+              name: 'Milestone: [MOB] {#MOB_DNAME} http status'
+              type: SCRIPT
+              key: 'mxp.mob.http[{#MOB_ID}]'
+              history: 7d
+              trends: '0'
+              params: |
+                try {
+                    var r = new HttpRequest();
+                    r.get('{#MOB_URI}');
+                    return parseInt(r.getStatus());
+                }
+                catch(e){
+                    return 0;
+                }
+              description: |
+                Check http service availability.
+                Expected http status code is 200, 0 on timeout.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              timeout: '10'
+              tags:
+                - tag: component
+                  value: mobile
+              trigger_prototypes:
+                - uuid: bdbe6577ec044469be0a3eae481e31db
+                  expression: 'last(/Milestone XProtect/mxp.mob.http[{#MOB_ID}]) <> 200'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} not responding'
+                  opdata: 'Http status: {ITEM.VALUE}'
+                  priority: AVERAGE
+            - uuid: 93f92f14ff1348feb9130a57818d8350
+              name: 'Milestone: [MOB] {#MOB_DNAME} BW in'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.bwin]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: K
+              description: 'Bandwidth usage (inbound)'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..InBand[''@BandWidthKb''].sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.125'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 0ad2dfabde3f46568003de34cc191985
+              name: 'Milestone: [MOB] {#MOB_DNAME} BW out'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.bwout]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: K
+              description: 'Bandwidth usage (outbound)'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..OutBand[''@BandWidthKb''].sum()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.125'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: ed2fe6d6c60f4d93b4dd4be3a342b6a1
+              name: 'Milestone: [MOB] {#MOB_DNAME} cpu usage'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.cpu]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.CpuUsage
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 4126d973bb454ff3a825dd99f10ca7ff
+              name: 'Milestone: [MOB] {#MOB_DNAME} status'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.error]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              description: 'Mobile Server communication status'
+              valuemap:
+                name: 'Mobile error codes'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ZabbixError
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+              trigger_prototypes:
+                - uuid: 4ce44fd0faec491393137ec351e94785
+                  expression: 'last(/Milestone XProtect/mxp.mob.status[{#MOB_ID}.error])<>0'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} communication fail'
+                  priority: WARNING
+                  description: 'Communication with Mobile Server has failed'
+            - uuid: 884290b6f12a4a579d80b9b0dd9c0256
+              name: 'Milestone: [MOB] {#MOB_DNAME} hw accelerated count'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.HwAcceleratedCount]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.HwAcceleratedCount
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 6d803b0ff0d740698dfbb2c69d07be24
+              name: 'Milestone: [MOB] {#MOB_DNAME} server ip'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.ip]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ServerIp
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 7bc3ed7315f64049821476360ec4db9e
+              name: 'Milestone: [MOB] {#MOB_DNAME} active streams'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.streams]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..Connections..[?(@.[''@State''] == ''Running'')].length()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 5m
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 61be55b804b841bf928173a53d76035b
+              name: 'Milestone: [MOB] {#MOB_DNAME} up since'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.upSince]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.UpSince
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.001'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: d60b99992e4e4802ab27f2761cdfe287
+              name: 'Milestone: [MOB] {#MOB_DNAME} active users'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.users]'
+              delay: '0'
+              history: 7d
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var v = JSON.parse(value);
+                      var users = v.MobileUsers.User;
+                      var count = 0;
+                      for (var i = 0; i < users.length; i++) {
+                        if (users[i].Connections !== null) {
+                          count++;
+                        }
+                      }
+                      return count;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: 374658e65ba5443bb250ace55146db17
+              name: 'Milestone: [MOB] {#MOB_DNAME} version'
+              type: DEPENDENT
+              key: 'mxp.mob.status[{#MOB_ID}.version]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ServerVersion.VersionString
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'mxp.mob.status[{#MOB_ID}]'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: c9166ec259e94417a094bc0d0062da58
+              name: 'Milestone: [MOB] {#MOB_DNAME}'
+              type: SCRIPT
+              key: 'mxp.mob.status[{#MOB_ID}]'
+              delay: 10m
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              params: |
+                // CryptoJS [3.1.2]
+                var CryptoJS=CryptoJS||function(t,e){var r={},i=r.lib={},n=function(){},o=i.Base={extend:function(t){n.prototype=this;var e=new n;return t&&e.mixIn(t),e.hasOwnProperty("init")||(e.init=function(){e.$super.init.apply(this,arguments)}),e.init.prototype=e,e.$super=this,e},create:function(){var t=this.extend();return t.init.apply(t,arguments),t},init:function(){},mixIn:function(t){for(var e in t)t.hasOwnProperty(e)&&(this[e]=t[e]);t.hasOwnProperty("toString")&&(this.toString=t.toString)},clone:function(){return this.init.prototype.extend(this)}},s=i.WordArray=o.extend({init:function(t,e){t=this.words=t||[],this.sigBytes=null!=e?e:4*t.length},toString:function(t){return(t||a).stringify(this)},concat:function(t){var e=this.words,r=t.words,i=this.sigBytes;if(t=t.sigBytes,this.clamp(),i%4)for(var n=0;n<t;n++)e[i+n>>>2]|=(r[n>>>2]>>>24-n%4*8&255)<<24-(i+n)%4*8;else if(65535<r.length)for(n=0;n<t;n+=4)e[i+n>>>2]=r[n>>>2];else e.push.apply(e,r);return this.sigBytes+=t,this},clamp:function(){var e=this.words,r=this.sigBytes;e[r>>>2]&=4294967295<<32-r%4*8,e.length=t.ceil(r/4)},clone:function(){var t=o.clone.call(this);return t.words=this.words.slice(0),t},random:function(e){for(var r=[],i=0;i<e;i+=4)r.push(4294967296*t.random()|0);return new s.init(r,e)}}),c=r.enc={},a=c.Hex={stringify:function(t){var e=t.words;t=t.sigBytes;for(var r=[],i=0;i<t;i++){var n=e[i>>>2]>>>24-i%4*8&255;r.push((n>>>4).toString(16)),r.push((15&n).toString(16))}return r.join("")},parse:function(t){for(var e=t.length,r=[],i=0;i<e;i+=2)r[i>>>3]|=parseInt(t.substr(i,2),16)<<24-i%8*4;return new s.init(r,e/2)}},f=c.Latin1={stringify:function(t){var e=t.words;t=t.sigBytes;for(var r=[],i=0;i<t;i++)r.push(String.fromCharCode(e[i>>>2]>>>24-i%4*8&255));return r.join("")},parse:function(t){for(var e=t.length,r=[],i=0;i<e;i++)r[i>>>2]|=(255&t.charCodeAt(i))<<24-i%4*8;return new s.init(r,e)}},h=c.Utf8={stringify:function(t){try{return decodeURIComponent(escape(f.stringify(t)))}catch(t){throw Error("Malformed UTF-8 data")}},parse:function(t){return f.parse(unescape(encodeURIComponent(t)))}},u=i.BufferedBlockAlgorithm=o.extend({reset:function(){this._data=new s.init,this._nDataBytes=0},_append:function(t){"string"==typeof t&&(t=h.parse(t)),this._data.concat(t),this._nDataBytes+=t.sigBytes},_process:function(e){var r=this._data,i=r.words,n=r.sigBytes,o=this.blockSize,c=n/(4*o);if(e=(c=e?t.ceil(c):t.max((0|c)-this._minBufferSize,0))*o,n=t.min(4*e,n),e){for(var a=0;a<e;a+=o)this._doProcessBlock(i,a);a=i.splice(0,e),r.sigBytes-=n}return new s.init(a,n)},clone:function(){var t=o.clone.call(this);return t._data=this._data.clone(),t},_minBufferSize:0});i.Hasher=u.extend({cfg:o.extend(),init:function(t){this.cfg=this.cfg.extend(t),this.reset()},reset:function(){u.reset.call(this),this._doReset()},update:function(t){return this._append(t),this._process(),this},finalize:function(t){return t&&this._append(t),this._doFinalize()},blockSize:16,_createHelper:function(t){return function(e,r){return new t.init(r).finalize(e)}},_createHmacHelper:function(t){return function(e,r){return new p.HMAC.init(t,r).finalize(e)}}});var p=r.algo={};return r}(Math);!function(){var t=CryptoJS,e=t.lib.WordArray;t.enc.Base64={stringify:function(t){var e=t.words,r=t.sigBytes,i=this._map;t.clamp(),t=[];for(var n=0;n<r;n+=3)for(var o=(e[n>>>2]>>>24-n%4*8&255)<<16|(e[n+1>>>2]>>>24-(n+1)%4*8&255)<<8|e[n+2>>>2]>>>24-(n+2)%4*8&255,s=0;4>s&&n+.75*s<r;s++)t.push(i.charAt(o>>>6*(3-s)&63));if(e=i.charAt(64))for(;t.length%4;)t.push(e);return t.join("")},parse:function(t){var r=t.length,i=this._map;(n=i.charAt(64))&&(-1!=(n=t.indexOf(n))&&(r=n));for(var n=[],o=0,s=0;s<r;s++)if(s%4){var c=i.indexOf(t.charAt(s-1))<<s%4*2,a=i.indexOf(t.charAt(s))>>>6-s%4*2;n[o>>>2]|=(c|a)<<24-o%4*8,o++}return e.create(n,o)},_map:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="}}(),function(t){function e(t,e,r,i,n,o,s){return((t=t+(e&r|~e&i)+n+s)<<o|t>>>32-o)+e}function r(t,e,r,i,n,o,s){return((t=t+(e&i|r&~i)+n+s)<<o|t>>>32-o)+e}function i(t,e,r,i,n,o,s){return((t=t+(e^r^i)+n+s)<<o|t>>>32-o)+e}function n(t,e,r,i,n,o,s){return((t=t+(r^(e|~i))+n+s)<<o|t>>>32-o)+e}for(var o=CryptoJS,s=(a=o.lib).WordArray,c=a.Hasher,a=o.algo,f=[],h=0;64>h;h++)f[h]=4294967296*t.abs(t.sin(h+1))|0;a=a.MD5=c.extend({_doReset:function(){this._hash=new s.init([1732584193,4023233417,2562383102,271733878])},_doProcessBlock:function(t,o){for(var s=0;16>s;s++){var c=t[a=o+s];t[a]=16711935&(c<<8|c>>>24)|4278255360&(c<<24|c>>>8)}s=this._hash.words;var a=t[o+0],h=(c=t[o+1],t[o+2]),u=t[o+3],p=t[o+4],d=t[o+5],l=t[o+6],y=t[o+7],_=t[o+8],v=t[o+9],g=t[o+10],B=t[o+11],x=t[o+12],S=t[o+13],k=t[o+14],m=t[o+15],z=e(z=s[0],D=s[1],w=s[2],C=s[3],a,7,f[0]),C=e(C,z,D,w,c,12,f[1]),w=e(w,C,z,D,h,17,f[2]),D=e(D,w,C,z,u,22,f[3]);z=e(z,D,w,C,p,7,f[4]),C=e(C,z,D,w,d,12,f[5]),w=e(w,C,z,D,l,17,f[6]),D=e(D,w,C,z,y,22,f[7]),z=e(z,D,w,C,_,7,f[8]),C=e(C,z,D,w,v,12,f[9]),w=e(w,C,z,D,g,17,f[10]),D=e(D,w,C,z,B,22,f[11]),z=e(z,D,w,C,x,7,f[12]),C=e(C,z,D,w,S,12,f[13]),w=e(w,C,z,D,k,17,f[14]),z=r(z,D=e(D,w,C,z,m,22,f[15]),w,C,c,5,f[16]),C=r(C,z,D,w,l,9,f[17]),w=r(w,C,z,D,B,14,f[18]),D=r(D,w,C,z,a,20,f[19]),z=r(z,D,w,C,d,5,f[20]),C=r(C,z,D,w,g,9,f[21]),w=r(w,C,z,D,m,14,f[22]),D=r(D,w,C,z,p,20,f[23]),z=r(z,D,w,C,v,5,f[24]),C=r(C,z,D,w,k,9,f[25]),w=r(w,C,z,D,u,14,f[26]),D=r(D,w,C,z,_,20,f[27]),z=r(z,D,w,C,S,5,f[28]),C=r(C,z,D,w,h,9,f[29]),w=r(w,C,z,D,y,14,f[30]),z=i(z,D=r(D,w,C,z,x,20,f[31]),w,C,d,4,f[32]),C=i(C,z,D,w,_,11,f[33]),w=i(w,C,z,D,B,16,f[34]),D=i(D,w,C,z,k,23,f[35]),z=i(z,D,w,C,c,4,f[36]),C=i(C,z,D,w,p,11,f[37]),w=i(w,C,z,D,y,16,f[38]),D=i(D,w,C,z,g,23,f[39]),z=i(z,D,w,C,S,4,f[40]),C=i(C,z,D,w,a,11,f[41]),w=i(w,C,z,D,u,16,f[42]),D=i(D,w,C,z,l,23,f[43]),z=i(z,D,w,C,v,4,f[44]),C=i(C,z,D,w,x,11,f[45]),w=i(w,C,z,D,m,16,f[46]),z=n(z,D=i(D,w,C,z,h,23,f[47]),w,C,a,6,f[48]),C=n(C,z,D,w,y,10,f[49]),w=n(w,C,z,D,k,15,f[50]),D=n(D,w,C,z,d,21,f[51]),z=n(z,D,w,C,x,6,f[52]),C=n(C,z,D,w,u,10,f[53]),w=n(w,C,z,D,g,15,f[54]),D=n(D,w,C,z,c,21,f[55]),z=n(z,D,w,C,_,6,f[56]),C=n(C,z,D,w,m,10,f[57]),w=n(w,C,z,D,l,15,f[58]),D=n(D,w,C,z,S,21,f[59]),z=n(z,D,w,C,p,6,f[60]),C=n(C,z,D,w,B,10,f[61]),w=n(w,C,z,D,h,15,f[62]),D=n(D,w,C,z,v,21,f[63]);s[0]=s[0]+z|0,s[1]=s[1]+D|0,s[2]=s[2]+w|0,s[3]=s[3]+C|0},_doFinalize:function(){var e=this._data,r=e.words,i=8*this._nDataBytes,n=8*e.sigBytes;r[n>>>5]|=128<<24-n%32;var o=t.floor(i/4294967296);for(r[15+(n+64>>>9<<4)]=16711935&(o<<8|o>>>24)|4278255360&(o<<24|o>>>8),r[14+(n+64>>>9<<4)]=16711935&(i<<8|i>>>24)|4278255360&(i<<24|i>>>8),e.sigBytes=4*(r.length+1),this._process(),r=(e=this._hash).words,i=0;4>i;i++)n=r[i],r[i]=16711935&(n<<8|n>>>24)|4278255360&(n<<24|n>>>8);return e},clone:function(){var t=c.clone.call(this);return t._hash=this._hash.clone(),t}}),o.MD5=c._createHelper(a),o.HmacMD5=c._createHmacHelper(a)}(Math),function(){var t,e=CryptoJS,r=(t=e.lib).Base,i=t.WordArray,n=(t=e.algo).EvpKDF=r.extend({cfg:r.extend({keySize:4,hasher:t.MD5,iterations:1}),init:function(t){this.cfg=this.cfg.extend(t)},compute:function(t,e){for(var r=(c=this.cfg).hasher.create(),n=i.create(),o=n.words,s=c.keySize,c=c.iterations;o.length<s;){a&&r.update(a);var a=r.update(t).finalize(e);r.reset();for(var f=1;f<c;f++)a=r.finalize(a),r.reset();n.concat(a)}return n.sigBytes=4*s,n}});e.EvpKDF=function(t,e,r){return n.create(r).compute(t,e)}}(),CryptoJS.lib.Cipher||function(t){var e=(d=CryptoJS).lib,r=e.Base,i=e.WordArray,n=e.BufferedBlockAlgorithm,o=d.enc.Base64,s=d.algo.EvpKDF,c=e.Cipher=n.extend({cfg:r.extend(),createEncryptor:function(t,e){return this.create(this._ENC_XFORM_MODE,t,e)},createDecryptor:function(t,e){return this.create(this._DEC_XFORM_MODE,t,e)},init:function(t,e,r){this.cfg=this.cfg.extend(r),this._xformMode=t,this._key=e,this.reset()},reset:function(){n.reset.call(this),this._doReset()},process:function(t){return this._append(t),this._process()},finalize:function(t){return t&&this._append(t),this._doFinalize()},keySize:4,ivSize:4,_ENC_XFORM_MODE:1,_DEC_XFORM_MODE:2,_createHelper:function(t){return{encrypt:function(e,r,i){return("string"==typeof r?l:p).encrypt(t,e,r,i)},decrypt:function(e,r,i){return("string"==typeof r?l:p).decrypt(t,e,r,i)}}}});e.StreamCipher=c.extend({_doFinalize:function(){return this._process(!0)},blockSize:1});var a=d.mode={},f=function(t,e,r){var i=this._iv;i?this._iv=undefined:i=this._prevBlock;for(var n=0;n<r;n++)t[e+n]^=i[n]},h=(e.BlockCipherMode=r.extend({createEncryptor:function(t,e){return this.Encryptor.create(t,e)},createDecryptor:function(t,e){return this.Decryptor.create(t,e)},init:function(t,e){this._cipher=t,this._iv=e}})).extend();h.Encryptor=h.extend({processBlock:function(t,e){var r=this._cipher,i=r.blockSize;f.call(this,t,e,i),r.encryptBlock(t,e),this._prevBlock=t.slice(e,e+i)}}),h.Decryptor=h.extend({processBlock:function(t,e){var r=this._cipher,i=r.blockSize,n=t.slice(e,e+i);r.decryptBlock(t,e),f.call(this,t,e,i),this._prevBlock=n}}),a=a.CBC=h,h=(d.pad={}).Pkcs7={pad:function(t,e){for(var r,n=(r=(r=4*e)-t.sigBytes%r)<<24|r<<16|r<<8|r,o=[],s=0;s<r;s+=4)o.push(n);r=i.create(o,r),t.concat(r)},unpad:function(t){t.sigBytes-=255&t.words[t.sigBytes-1>>>2]}},e.BlockCipher=c.extend({cfg:c.cfg.extend({mode:a,padding:h}),reset:function(){c.reset.call(this);var t=(e=this.cfg).iv,e=e.mode;if(this._xformMode==this._ENC_XFORM_MODE)var r=e.createEncryptor;else r=e.createDecryptor,this._minBufferSize=1;this._mode=r.call(e,this,t&&t.words)},_doProcessBlock:function(t,e){this._mode.processBlock(t,e)},_doFinalize:function(){var t=this.cfg.padding;if(this._xformMode==this._ENC_XFORM_MODE){t.pad(this._data,this.blockSize);var e=this._process(!0)}else e=this._process(!0),t.unpad(e);return e},blockSize:4});var u=e.CipherParams=r.extend({init:function(t){this.mixIn(t)},toString:function(t){return(t||this.formatter).stringify(this)}}),p=(a=(d.format={}).OpenSSL={stringify:function(t){var e=t.ciphertext;return((t=t.salt)?i.create([1398893684,1701076831]).concat(t).concat(e):e).toString(o)},parse:function(t){var e=(t=o.parse(t)).words;if(1398893684==e[0]&&1701076831==e[1]){var r=i.create(e.slice(2,4));e.splice(0,4),t.sigBytes-=16}return u.create({ciphertext:t,salt:r})}},e.SerializableCipher=r.extend({cfg:r.extend({format:a}),encrypt:function(t,e,r,i){i=this.cfg.extend(i);var n=t.createEncryptor(r,i);return e=n.finalize(e),n=n.cfg,u.create({ciphertext:e,key:r,iv:n.iv,algorithm:t,mode:n.mode,padding:n.padding,blockSize:t.blockSize,formatter:i.format})},decrypt:function(t,e,r,i){return i=this.cfg.extend(i),e=this._parse(e,i.format),t.createDecryptor(r,i).finalize(e.ciphertext)},_parse:function(t,e){return"string"==typeof t?e.parse(t,this):t}})),d=(d.kdf={}).OpenSSL={execute:function(t,e,r,n){return n||(n=i.random(8)),t=s.create({keySize:e+r}).compute(t,n),r=i.create(t.words.slice(e),4*r),t.sigBytes=4*e,u.create({key:t,iv:r,salt:n})}},l=e.PasswordBasedCipher=p.extend({cfg:p.cfg.extend({kdf:d}),encrypt:function(t,e,r,i){return r=(i=this.cfg.extend(i)).kdf.execute(r,t.keySize,t.ivSize),i.iv=r.iv,(t=p.encrypt.call(this,t,e,r.key,i)).mixIn(r),t},decrypt:function(t,e,r,i){return i=this.cfg.extend(i),e=this._parse(e,i.format),r=i.kdf.execute(r,t.keySize,t.ivSize,e.salt),i.iv=r.iv,p.decrypt.call(this,t,e,r.key,i)}})}(),function(){for(var t=CryptoJS,e=t.lib.BlockCipher,r=t.algo,i=[],n=[],o=[],s=[],c=[],a=[],f=[],h=[],u=[],p=[],d=[],l=0;256>l;l++)d[l]=128>l?l<<1:l<<1^283;var y=0,_=0;for(l=0;256>l;l++){var v=(v=_^_<<1^_<<2^_<<3^_<<4)>>>8^255&v^99;i[y]=v,n[v]=y;var g=d[y],B=d[g],x=d[B],S=257*d[v]^16843008*v;o[y]=S<<24|S>>>8,s[y]=S<<16|S>>>16,c[y]=S<<8|S>>>24,a[y]=S,S=16843009*x^65537*B^257*g^16843008*y,f[v]=S<<24|S>>>8,h[v]=S<<16|S>>>16,u[v]=S<<8|S>>>24,p[v]=S,y?(y=g^d[d[d[x^g]]],_^=d[d[_]]):y=_=1}var k=[0,1,2,4,8,16,32,64,128,27,54];r=r.AES=e.extend({_doReset:function(){for(var t=(r=this._key).words,e=r.sigBytes/4,r=4*((this._nRounds=e+6)+1),n=this._keySchedule=[],o=0;o<r;o++)if(o<e)n[o]=t[o];else{var s=n[o-1];o%e?6<e&&4==o%e&&(s=i[s>>>24]<<24|i[s>>>16&255]<<16|i[s>>>8&255]<<8|i[255&s]):(s=i[(s=s<<8|s>>>24)>>>24]<<24|i[s>>>16&255]<<16|i[s>>>8&255]<<8|i[255&s],s^=k[o/e|0]<<24),n[o]=n[o-e]^s}for(t=this._invKeySchedule=[],e=0;e<r;e++)o=r-e,s=e%4?n[o]:n[o-4],t[e]=4>e||4>=o?s:f[i[s>>>24]]^h[i[s>>>16&255]]^u[i[s>>>8&255]]^p[i[255&s]]},encryptBlock:function(t,e){this._doCryptBlock(t,e,this._keySchedule,o,s,c,a,i)},decryptBlock:function(t,e){var r=t[e+1];t[e+1]=t[e+3],t[e+3]=r,this._doCryptBlock(t,e,this._invKeySchedule,f,h,u,p,n),r=t[e+1],t[e+1]=t[e+3],t[e+3]=r},_doCryptBlock:function(t,e,r,i,n,o,s,c){for(var a=this._nRounds,f=t[e]^r[0],h=t[e+1]^r[1],u=t[e+2]^r[2],p=t[e+3]^r[3],d=4,l=1;l<a;l++){var y=i[f>>>24]^n[h>>>16&255]^o[u>>>8&255]^s[255&p]^r[d++],_=i[h>>>24]^n[u>>>16&255]^o[p>>>8&255]^s[255&f]^r[d++],v=i[u>>>24]^n[p>>>16&255]^o[f>>>8&255]^s[255&h]^r[d++];p=i[p>>>24]^n[f>>>16&255]^o[h>>>8&255]^s[255&u]^r[d++],f=y,h=_,u=v}y=(c[f>>>24]<<24|c[h>>>16&255]<<16|c[u>>>8&255]<<8|c[255&p])^r[d++],_=(c[h>>>24]<<24|c[u>>>16&255]<<16|c[p>>>8&255]<<8|c[255&f])^r[d++],v=(c[u>>>24]<<24|c[p>>>16&255]<<16|c[f>>>8&255]<<8|c[255&h])^r[d++],p=(c[p>>>24]<<24|c[f>>>16&255]<<16|c[h>>>8&255]<<8|c[255&u])^r[d++],t[e]=y,t[e+1]=_,t[e+2]=v,t[e+3]=p},keySize:8});t.AES=e._createHelper(r)}();
+                // BigInteger [1.6.52]
+                var bigInt=function(undefined){"use strict";var BASE=1e7,LOG_BASE=7,MAX_INT=9007199254740992,MAX_INT_ARR=smallToArray(MAX_INT),DEFAULT_ALPHABET="0123456789abcdefghijklmnopqrstuvwxyz";var supportsNativeBigInt=typeof BigInt==="function";function Integer(v,radix,alphabet,caseSensitive){if(typeof v==="undefined")return Integer[0];if(typeof radix!=="undefined")return+radix===10&&!alphabet?parseValue(v):parseBase(v,radix,alphabet,caseSensitive);return parseValue(v)}function BigInteger(value,sign){this.value=value;this.sign=sign;this.isSmall=false}BigInteger.prototype=Object.create(Integer.prototype);function SmallInteger(value){this.value=value;this.sign=value<0;this.isSmall=true}SmallInteger.prototype=Object.create(Integer.prototype);function NativeBigInt(value){this.value=value}NativeBigInt.prototype=Object.create(Integer.prototype);function isPrecise(n){return-MAX_INT<n&&n<MAX_INT}function smallToArray(n){if(n<1e7)return[n];if(n<1e14)return[n%1e7,Math.floor(n/1e7)];return[n%1e7,Math.floor(n/1e7)%1e7,Math.floor(n/1e14)]}function arrayToSmall(arr){trim(arr);var length=arr.length;if(length<4&&compareAbs(arr,MAX_INT_ARR)<0){switch(length){case 0:return 0;case 1:return arr[0];case 2:return arr[0]+arr[1]*BASE;default:return arr[0]+(arr[1]+arr[2]*BASE)*BASE}}return arr}function trim(v){var i=v.length;while(v[--i]===0);v.length=i+1}function createArray(length){var x=new Array(length);var i=-1;while(++i<length){x[i]=0}return x}function truncate(n){if(n>0)return Math.floor(n);return Math.ceil(n)}function add(a,b){var l_a=a.length,l_b=b.length,r=new Array(l_a),carry=0,base=BASE,sum,i;for(i=0;i<l_b;i++){sum=a[i]+b[i]+carry;carry=sum>=base?1:0;r[i]=sum-carry*base}while(i<l_a){sum=a[i]+carry;carry=sum===base?1:0;r[i++]=sum-carry*base}if(carry>0)r.push(carry);return r}function addAny(a,b){if(a.length>=b.length)return add(a,b);return add(b,a)}function addSmall(a,carry){var l=a.length,r=new Array(l),base=BASE,sum,i;for(i=0;i<l;i++){sum=a[i]-base+carry;carry=Math.floor(sum/base);r[i]=sum-carry*base;carry+=1}while(carry>0){r[i++]=carry%base;carry=Math.floor(carry/base)}return r}BigInteger.prototype.add=function(v){var n=parseValue(v);if(this.sign!==n.sign){return this.subtract(n.negate())}var a=this.value,b=n.value;if(n.isSmall){return new BigInteger(addSmall(a,Math.abs(b)),this.sign)}return new BigInteger(addAny(a,b),this.sign)};BigInteger.prototype.plus=BigInteger.prototype.add;SmallInteger.prototype.add=function(v){var n=parseValue(v);var a=this.value;if(a<0!==n.sign){return this.subtract(n.negate())}var b=n.value;if(n.isSmall){if(isPrecise(a+b))return new SmallInteger(a+b);b=smallToArray(Math.abs(b))}return new BigInteger(addSmall(b,Math.abs(a)),a<0)};SmallInteger.prototype.plus=SmallInteger.prototype.add;NativeBigInt.prototype.add=function(v){return new NativeBigInt(this.value+parseValue(v).value)};NativeBigInt.prototype.plus=NativeBigInt.prototype.add;function subtract(a,b){var a_l=a.length,b_l=b.length,r=new Array(a_l),borrow=0,base=BASE,i,difference;for(i=0;i<b_l;i++){difference=a[i]-borrow-b[i];if(difference<0){difference+=base;borrow=1}else borrow=0;r[i]=difference}for(i=b_l;i<a_l;i++){difference=a[i]-borrow;if(difference<0)difference+=base;else{r[i++]=difference;break}r[i]=difference}for(;i<a_l;i++){r[i]=a[i]}trim(r);return r}function subtractAny(a,b,sign){var value;if(compareAbs(a,b)>=0){value=subtract(a,b)}else{value=subtract(b,a);sign=!sign}value=arrayToSmall(value);if(typeof value==="number"){if(sign)value=-value;return new SmallInteger(value)}return new BigInteger(value,sign)}function subtractSmall(a,b,sign){var l=a.length,r=new Array(l),carry=-b,base=BASE,i,difference;for(i=0;i<l;i++){difference=a[i]+carry;carry=Math.floor(difference/base);difference%=base;r[i]=difference<0?difference+base:difference}r=arrayToSmall(r);if(typeof r==="number"){if(sign)r=-r;return new SmallInteger(r)}return new BigInteger(r,sign)}BigInteger.prototype.subtract=function(v){var n=parseValue(v);if(this.sign!==n.sign){return this.add(n.negate())}var a=this.value,b=n.value;if(n.isSmall)return subtractSmall(a,Math.abs(b),this.sign);return subtractAny(a,b,this.sign)};BigInteger.prototype.minus=BigInteger.prototype.subtract;SmallInteger.prototype.subtract=function(v){var n=parseValue(v);var a=this.value;if(a<0!==n.sign){return this.add(n.negate())}var b=n.value;if(n.isSmall){return new SmallInteger(a-b)}return subtractSmall(b,Math.abs(a),a>=0)};SmallInteger.prototype.minus=SmallInteger.prototype.subtract;NativeBigInt.prototype.subtract=function(v){return new NativeBigInt(this.value-parseValue(v).value)};NativeBigInt.prototype.minus=NativeBigInt.prototype.subtract;BigInteger.prototype.negate=function(){return new BigInteger(this.value,!this.sign)};SmallInteger.prototype.negate=function(){var sign=this.sign;var small=new SmallInteger(-this.value);small.sign=!sign;return small};NativeBigInt.prototype.negate=function(){return new NativeBigInt(-this.value)};BigInteger.prototype.abs=function(){return new BigInteger(this.value,false)};SmallInteger.prototype.abs=function(){return new SmallInteger(Math.abs(this.value))};NativeBigInt.prototype.abs=function(){return new NativeBigInt(this.value>=0?this.value:-this.value)};function multiplyLong(a,b){var a_l=a.length,b_l=b.length,l=a_l+b_l,r=createArray(l),base=BASE,product,carry,i,a_i,b_j;for(i=0;i<a_l;++i){a_i=a[i];for(var j=0;j<b_l;++j){b_j=b[j];product=a_i*b_j+r[i+j];carry=Math.floor(product/base);r[i+j]=product-carry*base;r[i+j+1]+=carry}}trim(r);return r}function multiplySmall(a,b){var l=a.length,r=new Array(l),base=BASE,carry=0,product,i;for(i=0;i<l;i++){product=a[i]*b+carry;carry=Math.floor(product/base);r[i]=product-carry*base}while(carry>0){r[i++]=carry%base;carry=Math.floor(carry/base)}return r}function shiftLeft(x,n){var r=[];while(n-- >0)r.push(0);return r.concat(x)}function multiplyKaratsuba(x,y){var n=Math.max(x.length,y.length);if(n<=30)return multiplyLong(x,y);n=Math.ceil(n/2);var b=x.slice(n),a=x.slice(0,n),d=y.slice(n),c=y.slice(0,n);var ac=multiplyKaratsuba(a,c),bd=multiplyKaratsuba(b,d),abcd=multiplyKaratsuba(addAny(a,b),addAny(c,d));var product=addAny(addAny(ac,shiftLeft(subtract(subtract(abcd,ac),bd),n)),shiftLeft(bd,2*n));trim(product);return product}function useKaratsuba(l1,l2){return-.012*l1-.012*l2+15e-6*l1*l2>0}BigInteger.prototype.multiply=function(v){var n=parseValue(v),a=this.value,b=n.value,sign=this.sign!==n.sign,abs;if(n.isSmall){if(b===0)return Integer[0];if(b===1)return this;if(b===-1)return this.negate();abs=Math.abs(b);if(abs<BASE){return new BigInteger(multiplySmall(a,abs),sign)}b=smallToArray(abs)}if(useKaratsuba(a.length,b.length))return new BigInteger(multiplyKaratsuba(a,b),sign);return new BigInteger(multiplyLong(a,b),sign)};BigInteger.prototype.times=BigInteger.prototype.multiply;function multiplySmallAndArray(a,b,sign){if(a<BASE){return new BigInteger(multiplySmall(b,a),sign)}return new BigInteger(multiplyLong(b,smallToArray(a)),sign)}SmallInteger.prototype._multiplyBySmall=function(a){if(isPrecise(a.value*this.value)){return new SmallInteger(a.value*this.value)}return multiplySmallAndArray(Math.abs(a.value),smallToArray(Math.abs(this.value)),this.sign!==a.sign)};BigInteger.prototype._multiplyBySmall=function(a){if(a.value===0)return Integer[0];if(a.value===1)return this;if(a.value===-1)return this.negate();return multiplySmallAndArray(Math.abs(a.value),this.value,this.sign!==a.sign)};SmallInteger.prototype.multiply=function(v){return parseValue(v)._multiplyBySmall(this)};SmallInteger.prototype.times=SmallInteger.prototype.multiply;NativeBigInt.prototype.multiply=function(v){return new NativeBigInt(this.value*parseValue(v).value)};NativeBigInt.prototype.times=NativeBigInt.prototype.multiply;function square(a){var l=a.length,r=createArray(l+l),base=BASE,product,carry,i,a_i,a_j;for(i=0;i<l;i++){a_i=a[i];carry=0-a_i*a_i;for(var j=i;j<l;j++){a_j=a[j];product=2*(a_i*a_j)+r[i+j]+carry;carry=Math.floor(product/base);r[i+j]=product-carry*base}r[i+l]=carry}trim(r);return r}BigInteger.prototype.square=function(){return new BigInteger(square(this.value),false)};SmallInteger.prototype.square=function(){var value=this.value*this.value;if(isPrecise(value))return new SmallInteger(value);return new BigInteger(square(smallToArray(Math.abs(this.value))),false)};NativeBigInt.prototype.square=function(v){return new NativeBigInt(this.value*this.value)};function divMod1(a,b){var a_l=a.length,b_l=b.length,base=BASE,result=createArray(b.length),divisorMostSignificantDigit=b[b_l-1],lambda=Math.ceil(base/(2*divisorMostSignificantDigit)),remainder=multiplySmall(a,lambda),divisor=multiplySmall(b,lambda),quotientDigit,shift,carry,borrow,i,l,q;if(remainder.length<=a_l)remainder.push(0);divisor.push(0);divisorMostSignificantDigit=divisor[b_l-1];for(shift=a_l-b_l;shift>=0;shift--){quotientDigit=base-1;if(remainder[shift+b_l]!==divisorMostSignificantDigit){quotientDigit=Math.floor((remainder[shift+b_l]*base+remainder[shift+b_l-1])/divisorMostSignificantDigit)}carry=0;borrow=0;l=divisor.length;for(i=0;i<l;i++){carry+=quotientDigit*divisor[i];q=Math.floor(carry/base);borrow+=remainder[shift+i]-(carry-q*base);carry=q;if(borrow<0){remainder[shift+i]=borrow+base;borrow=-1}else{remainder[shift+i]=borrow;borrow=0}}while(borrow!==0){quotientDigit-=1;carry=0;for(i=0;i<l;i++){carry+=remainder[shift+i]-base+divisor[i];if(carry<0){remainder[shift+i]=carry+base;carry=0}else{remainder[shift+i]=carry;carry=1}}borrow+=carry}result[shift]=quotientDigit}remainder=divModSmall(remainder,lambda)[0];return[arrayToSmall(result),arrayToSmall(remainder)]}function divMod2(a,b){var a_l=a.length,b_l=b.length,result=[],part=[],base=BASE,guess,xlen,highx,highy,check;while(a_l){part.unshift(a[--a_l]);trim(part);if(compareAbs(part,b)<0){result.push(0);continue}xlen=part.length;highx=part[xlen-1]*base+part[xlen-2];highy=b[b_l-1]*base+b[b_l-2];if(xlen>b_l){highx=(highx+1)*base}guess=Math.ceil(highx/highy);do{check=multiplySmall(b,guess);if(compareAbs(check,part)<=0)break;guess--}while(guess);result.push(guess);part=subtract(part,check)}result.reverse();return[arrayToSmall(result),arrayToSmall(part)]}function divModSmall(value,lambda){var length=value.length,quotient=createArray(length),base=BASE,i,q,remainder,divisor;remainder=0;for(i=length-1;i>=0;--i){divisor=remainder*base+value[i];q=truncate(divisor/lambda);remainder=divisor-q*lambda;quotient[i]=q|0}return[quotient,remainder|0]}function divModAny(self,v){var value,n=parseValue(v);if(supportsNativeBigInt){return[new NativeBigInt(self.value/n.value),new NativeBigInt(self.value%n.value)]}var a=self.value,b=n.value;var quotient;if(b===0)throw new Error("Cannot divide by zero");if(self.isSmall){if(n.isSmall){return[new SmallInteger(truncate(a/b)),new SmallInteger(a%b)]}return[Integer[0],self]}if(n.isSmall){if(b===1)return[self,Integer[0]];if(b==-1)return[self.negate(),Integer[0]];var abs=Math.abs(b);if(abs<BASE){value=divModSmall(a,abs);quotient=arrayToSmall(value[0]);var remainder=value[1];if(self.sign)remainder=-remainder;if(typeof quotient==="number"){if(self.sign!==n.sign)quotient=-quotient;return[new SmallInteger(quotient),new SmallInteger(remainder)]}return[new BigInteger(quotient,self.sign!==n.sign),new SmallInteger(remainder)]}b=smallToArray(abs)}var comparison=compareAbs(a,b);if(comparison===-1)return[Integer[0],self];if(comparison===0)return[Integer[self.sign===n.sign?1:-1],Integer[0]];if(a.length+b.length<=200)value=divMod1(a,b);else value=divMod2(a,b);quotient=value[0];var qSign=self.sign!==n.sign,mod=value[1],mSign=self.sign;if(typeof quotient==="number"){if(qSign)quotient=-quotient;quotient=new SmallInteger(quotient)}else quotient=new BigInteger(quotient,qSign);if(typeof mod==="number"){if(mSign)mod=-mod;mod=new SmallInteger(mod)}else mod=new BigInteger(mod,mSign);return[quotient,mod]}BigInteger.prototype.divmod=function(v){var result=divModAny(this,v);return{quotient:result[0],remainder:result[1]}};NativeBigInt.prototype.divmod=SmallInteger.prototype.divmod=BigInteger.prototype.divmod;BigInteger.prototype.divide=function(v){return divModAny(this,v)[0]};NativeBigInt.prototype.over=NativeBigInt.prototype.divide=function(v){return new NativeBigInt(this.value/parseValue(v).value)};SmallInteger.prototype.over=SmallInteger.prototype.divide=BigInteger.prototype.over=BigInteger.prototype.divide;BigInteger.prototype.mod=function(v){return divModAny(this,v)[1]};NativeBigInt.prototype.mod=NativeBigInt.prototype.remainder=function(v){return new NativeBigInt(this.value%parseValue(v).value)};SmallInteger.prototype.remainder=SmallInteger.prototype.mod=BigInteger.prototype.remainder=BigInteger.prototype.mod;BigInteger.prototype.pow=function(v){var n=parseValue(v),a=this.value,b=n.value,value,x,y;if(b===0)return Integer[1];if(a===0)return Integer[0];if(a===1)return Integer[1];if(a===-1)return n.isEven()?Integer[1]:Integer[-1];if(n.sign){return Integer[0]}if(!n.isSmall)throw new Error("The exponent "+n.toString()+" is too large.");if(this.isSmall){if(isPrecise(value=Math.pow(a,b)))return new SmallInteger(truncate(value))}x=this;y=Integer[1];while(true){if(b&1===1){y=y.times(x);--b}if(b===0)break;b/=2;x=x.square()}return y};SmallInteger.prototype.pow=BigInteger.prototype.pow;NativeBigInt.prototype.pow=function(v){var n=parseValue(v);var a=this.value,b=n.value;var _0=BigInt(0),_1=BigInt(1),_2=BigInt(2);if(b===_0)return Integer[1];if(a===_0)return Integer[0];if(a===_1)return Integer[1];if(a===BigInt(-1))return n.isEven()?Integer[1]:Integer[-1];if(n.isNegative())return new NativeBigInt(_0);var x=this;var y=Integer[1];while(true){if((b&_1)===_1){y=y.times(x);--b}if(b===_0)break;b/=_2;x=x.square()}return y};BigInteger.prototype.modPow=function(exp,mod){exp=parseValue(exp);mod=parseValue(mod);if(mod.isZero())throw new Error("Cannot take modPow with modulus 0");var r=Integer[1],base=this.mod(mod);if(exp.isNegative()){exp=exp.multiply(Integer[-1]);base=base.modInv(mod)}while(exp.isPositive()){if(base.isZero())return Integer[0];if(exp.isOdd())r=r.multiply(base).mod(mod);exp=exp.divide(2);base=base.square().mod(mod)}return r};NativeBigInt.prototype.modPow=SmallInteger.prototype.modPow=BigInteger.prototype.modPow;function compareAbs(a,b){if(a.length!==b.length){return a.length>b.length?1:-1}for(var i=a.length-1;i>=0;i--){if(a[i]!==b[i])return a[i]>b[i]?1:-1}return 0}BigInteger.prototype.compareAbs=function(v){var n=parseValue(v),a=this.value,b=n.value;if(n.isSmall)return 1;return compareAbs(a,b)};SmallInteger.prototype.compareAbs=function(v){var n=parseValue(v),a=Math.abs(this.value),b=n.value;if(n.isSmall){b=Math.abs(b);return a===b?0:a>b?1:-1}return-1};NativeBigInt.prototype.compareAbs=function(v){var a=this.value;var b=parseValue(v).value;a=a>=0?a:-a;b=b>=0?b:-b;return a===b?0:a>b?1:-1};BigInteger.prototype.compare=function(v){if(v===Infinity){return-1}if(v===-Infinity){return 1}var n=parseValue(v),a=this.value,b=n.value;if(this.sign!==n.sign){return n.sign?1:-1}if(n.isSmall){return this.sign?-1:1}return compareAbs(a,b)*(this.sign?-1:1)};BigInteger.prototype.compareTo=BigInteger.prototype.compare;SmallInteger.prototype.compare=function(v){if(v===Infinity){return-1}if(v===-Infinity){return 1}var n=parseValue(v),a=this.value,b=n.value;if(n.isSmall){return a==b?0:a>b?1:-1}if(a<0!==n.sign){return a<0?-1:1}return a<0?1:-1};SmallInteger.prototype.compareTo=SmallInteger.prototype.compare;NativeBigInt.prototype.compare=function(v){if(v===Infinity){return-1}if(v===-Infinity){return 1}var a=this.value;var b=parseValue(v).value;return a===b?0:a>b?1:-1};NativeBigInt.prototype.compareTo=NativeBigInt.prototype.compare;BigInteger.prototype.equals=function(v){return this.compare(v)===0};NativeBigInt.prototype.eq=NativeBigInt.prototype.equals=SmallInteger.prototype.eq=SmallInteger.prototype.equals=BigInteger.prototype.eq=BigInteger.prototype.equals;BigInteger.prototype.notEquals=function(v){return this.compare(v)!==0};NativeBigInt.prototype.neq=NativeBigInt.prototype.notEquals=SmallInteger.prototype.neq=SmallInteger.prototype.notEquals=BigInteger.prototype.neq=BigInteger.prototype.notEquals;BigInteger.prototype.greater=function(v){return this.compare(v)>0};NativeBigInt.prototype.gt=NativeBigInt.prototype.greater=SmallInteger.prototype.gt=SmallInteger.prototype.greater=BigInteger.prototype.gt=BigInteger.prototype.greater;BigInteger.prototype.lesser=function(v){return this.compare(v)<0};NativeBigInt.prototype.lt=NativeBigInt.prototype.lesser=SmallInteger.prototype.lt=SmallInteger.prototype.lesser=BigInteger.prototype.lt=BigInteger.prototype.lesser;BigInteger.prototype.greaterOrEquals=function(v){return this.compare(v)>=0};NativeBigInt.prototype.geq=NativeBigInt.prototype.greaterOrEquals=SmallInteger.prototype.geq=SmallInteger.prototype.greaterOrEquals=BigInteger.prototype.geq=BigInteger.prototype.greaterOrEquals;BigInteger.prototype.lesserOrEquals=function(v){return this.compare(v)<=0};NativeBigInt.prototype.leq=NativeBigInt.prototype.lesserOrEquals=SmallInteger.prototype.leq=SmallInteger.prototype.lesserOrEquals=BigInteger.prototype.leq=BigInteger.prototype.lesserOrEquals;BigInteger.prototype.isEven=function(){return(this.value[0]&1)===0};SmallInteger.prototype.isEven=function(){return(this.value&1)===0};NativeBigInt.prototype.isEven=function(){return(this.value&BigInt(1))===BigInt(0)};BigInteger.prototype.isOdd=function(){return(this.value[0]&1)===1};SmallInteger.prototype.isOdd=function(){return(this.value&1)===1};NativeBigInt.prototype.isOdd=function(){return(this.value&BigInt(1))===BigInt(1)};BigInteger.prototype.isPositive=function(){return!this.sign};SmallInteger.prototype.isPositive=function(){return this.value>0};NativeBigInt.prototype.isPositive=SmallInteger.prototype.isPositive;BigInteger.prototype.isNegative=function(){return this.sign};SmallInteger.prototype.isNegative=function(){return this.value<0};NativeBigInt.prototype.isNegative=SmallInteger.prototype.isNegative;BigInteger.prototype.isUnit=function(){return false};SmallInteger.prototype.isUnit=function(){return Math.abs(this.value)===1};NativeBigInt.prototype.isUnit=function(){return this.abs().value===BigInt(1)};BigInteger.prototype.isZero=function(){return false};SmallInteger.prototype.isZero=function(){return this.value===0};NativeBigInt.prototype.isZero=function(){return this.value===BigInt(0)};BigInteger.prototype.isDivisibleBy=function(v){var n=parseValue(v);if(n.isZero())return false;if(n.isUnit())return true;if(n.compareAbs(2)===0)return this.isEven();return this.mod(n).isZero()};NativeBigInt.prototype.isDivisibleBy=SmallInteger.prototype.isDivisibleBy=BigInteger.prototype.isDivisibleBy;function isBasicPrime(v){var n=v.abs();if(n.isUnit())return false;if(n.equals(2)||n.equals(3)||n.equals(5))return true;if(n.isEven()||n.isDivisibleBy(3)||n.isDivisibleBy(5))return false;if(n.lesser(49))return true}function millerRabinTest(n,a){var nPrev=n.prev(),b=nPrev,r=0,d,t,i,x;while(b.isEven())b=b.divide(2),r++;next:for(i=0;i<a.length;i++){if(n.lesser(a[i]))continue;x=bigInt(a[i]).modPow(b,n);if(x.isUnit()||x.equals(nPrev))continue;for(d=r-1;d!=0;d--){x=x.square().mod(n);if(x.isUnit())return false;if(x.equals(nPrev))continue next}return false}return true}BigInteger.prototype.isPrime=function(strict){var isPrime=isBasicPrime(this);if(isPrime!==undefined)return isPrime;var n=this.abs();var bits=n.bitLength();if(bits<=64)return millerRabinTest(n,[2,3,5,7,11,13,17,19,23,29,31,37]);var logN=Math.log(2)*bits.toJSNumber();var t=Math.ceil(strict===true?2*Math.pow(logN,2):logN);for(var a=[],i=0;i<t;i++){a.push(bigInt(i+2))}return millerRabinTest(n,a)};NativeBigInt.prototype.isPrime=SmallInteger.prototype.isPrime=BigInteger.prototype.isPrime;BigInteger.prototype.isProbablePrime=function(iterations,rng){var isPrime=isBasicPrime(this);if(isPrime!==undefined)return isPrime;var n=this.abs();var t=iterations===undefined?5:iterations;for(var a=[],i=0;i<t;i++){a.push(bigInt.randBetween(2,n.minus(2),rng))}return millerRabinTest(n,a)};NativeBigInt.prototype.isProbablePrime=SmallInteger.prototype.isProbablePrime=BigInteger.prototype.isProbablePrime;BigInteger.prototype.modInv=function(n){var t=bigInt.zero,newT=bigInt.one,r=parseValue(n),newR=this.abs(),q,lastT,lastR;while(!newR.isZero()){q=r.divide(newR);lastT=t;lastR=r;t=newT;r=newR;newT=lastT.subtract(q.multiply(newT));newR=lastR.subtract(q.multiply(newR))}if(!r.isUnit())throw new Error(this.toString()+" and "+n.toString()+" are not co-prime");if(t.compare(0)===-1){t=t.add(n)}if(this.isNegative()){return t.negate()}return t};NativeBigInt.prototype.modInv=SmallInteger.prototype.modInv=BigInteger.prototype.modInv;BigInteger.prototype.next=function(){var value=this.value;if(this.sign){return subtractSmall(value,1,this.sign)}return new BigInteger(addSmall(value,1),this.sign)};SmallInteger.prototype.next=function(){var value=this.value;if(value+1<MAX_INT)return new SmallInteger(value+1);return new BigInteger(MAX_INT_ARR,false)};NativeBigInt.prototype.next=function(){return new NativeBigInt(this.value+BigInt(1))};BigInteger.prototype.prev=function(){var value=this.value;if(this.sign){return new BigInteger(addSmall(value,1),true)}return subtractSmall(value,1,this.sign)};SmallInteger.prototype.prev=function(){var value=this.value;if(value-1>-MAX_INT)return new SmallInteger(value-1);return new BigInteger(MAX_INT_ARR,true)};NativeBigInt.prototype.prev=function(){return new NativeBigInt(this.value-BigInt(1))};var powersOfTwo=[1];while(2*powersOfTwo[powersOfTwo.length-1]<=BASE)powersOfTwo.push(2*powersOfTwo[powersOfTwo.length-1]);var powers2Length=powersOfTwo.length,highestPower2=powersOfTwo[powers2Length-1];function shift_isSmall(n){return Math.abs(n)<=BASE}BigInteger.prototype.shiftLeft=function(v){var n=parseValue(v).toJSNumber();if(!shift_isSmall(n)){throw new Error(String(n)+" is too large for shifting.")}if(n<0)return this.shiftRight(-n);var result=this;if(result.isZero())return result;while(n>=powers2Length){result=result.multiply(highestPower2);n-=powers2Length-1}return result.multiply(powersOfTwo[n])};NativeBigInt.prototype.shiftLeft=SmallInteger.prototype.shiftLeft=BigInteger.prototype.shiftLeft;BigInteger.prototype.shiftRight=function(v){var remQuo;var n=parseValue(v).toJSNumber();if(!shift_isSmall(n)){throw new Error(String(n)+" is too large for shifting.")}if(n<0)return this.shiftLeft(-n);var result=this;while(n>=powers2Length){if(result.isZero()||result.isNegative()&&result.isUnit())return result;remQuo=divModAny(result,highestPower2);result=remQuo[1].isNegative()?remQuo[0].prev():remQuo[0];n-=powers2Length-1}remQuo=divModAny(result,powersOfTwo[n]);return remQuo[1].isNegative()?remQuo[0].prev():remQuo[0]};NativeBigInt.prototype.shiftRight=SmallInteger.prototype.shiftRight=BigInteger.prototype.shiftRight;function bitwise(x,y,fn){y=parseValue(y);var xSign=x.isNegative(),ySign=y.isNegative();var xRem=xSign?x.not():x,yRem=ySign?y.not():y;var xDigit=0,yDigit=0;var xDivMod=null,yDivMod=null;var result=[];while(!xRem.isZero()||!yRem.isZero()){xDivMod=divModAny(xRem,highestPower2);xDigit=xDivMod[1].toJSNumber();if(xSign){xDigit=highestPower2-1-xDigit}yDivMod=divModAny(yRem,highestPower2);yDigit=yDivMod[1].toJSNumber();if(ySign){yDigit=highestPower2-1-yDigit}xRem=xDivMod[0];yRem=yDivMod[0];result.push(fn(xDigit,yDigit))}var sum=fn(xSign?1:0,ySign?1:0)!==0?bigInt(-1):bigInt(0);for(var i=result.length-1;i>=0;i-=1){sum=sum.multiply(highestPower2).add(bigInt(result[i]))}return sum}BigInteger.prototype.not=function(){return this.negate().prev()};NativeBigInt.prototype.not=SmallInteger.prototype.not=BigInteger.prototype.not;BigInteger.prototype.and=function(n){return bitwise(this,n,function(a,b){return a&b})};NativeBigInt.prototype.and=SmallInteger.prototype.and=BigInteger.prototype.and;BigInteger.prototype.or=function(n){return bitwise(this,n,function(a,b){return a|b})};NativeBigInt.prototype.or=SmallInteger.prototype.or=BigInteger.prototype.or;BigInteger.prototype.xor=function(n){return bitwise(this,n,function(a,b){return a^b})};NativeBigInt.prototype.xor=SmallInteger.prototype.xor=BigInteger.prototype.xor;var LOBMASK_I=1<<30,LOBMASK_BI=(BASE&-BASE)*(BASE&-BASE)|LOBMASK_I;function roughLOB(n){var v=n.value,x=typeof v==="number"?v|LOBMASK_I:typeof v==="bigint"?v|BigInt(LOBMASK_I):v[0]+v[1]*BASE|LOBMASK_BI;return x&-x}function integerLogarithm(value,base){if(base.compareTo(value)<=0){var tmp=integerLogarithm(value,base.square(base));var p=tmp.p;var e=tmp.e;var t=p.multiply(base);return t.compareTo(value)<=0?{p:t,e:e*2+1}:{p:p,e:e*2}}return{p:bigInt(1),e:0}}BigInteger.prototype.bitLength=function(){var n=this;if(n.compareTo(bigInt(0))<0){n=n.negate().subtract(bigInt(1))}if(n.compareTo(bigInt(0))===0){return bigInt(0)}return bigInt(integerLogarithm(n,bigInt(2)).e).add(bigInt(1))};NativeBigInt.prototype.bitLength=SmallInteger.prototype.bitLength=BigInteger.prototype.bitLength;function max(a,b){a=parseValue(a);b=parseValue(b);return a.greater(b)?a:b}function min(a,b){a=parseValue(a);b=parseValue(b);return a.lesser(b)?a:b}function gcd(a,b){a=parseValue(a).abs();b=parseValue(b).abs();if(a.equals(b))return a;if(a.isZero())return b;if(b.isZero())return a;var c=Integer[1],d,t;while(a.isEven()&&b.isEven()){d=min(roughLOB(a),roughLOB(b));a=a.divide(d);b=b.divide(d);c=c.multiply(d)}while(a.isEven()){a=a.divide(roughLOB(a))}do{while(b.isEven()){b=b.divide(roughLOB(b))}if(a.greater(b)){t=b;b=a;a=t}b=b.subtract(a)}while(!b.isZero());return c.isUnit()?a:a.multiply(c)}function lcm(a,b){a=parseValue(a).abs();b=parseValue(b).abs();return a.divide(gcd(a,b)).multiply(b)}function randBetween(a,b,rng){a=parseValue(a);b=parseValue(b);var usedRNG=rng||Math.random;var low=min(a,b),high=max(a,b);var range=high.subtract(low).add(1);if(range.isSmall)return low.add(Math.floor(usedRNG()*range));var digits=toBase(range,BASE).value;var result=[],restricted=true;for(var i=0;i<digits.length;i++){var top=restricted?digits[i]+(i+1<digits.length?digits[i+1]/BASE:0):BASE;var digit=truncate(usedRNG()*top);result.push(digit);if(digit<digits[i])restricted=false}return low.add(Integer.fromArray(result,BASE,false))}var parseBase=function(text,base,alphabet,caseSensitive){alphabet=alphabet||DEFAULT_ALPHABET;text=String(text);if(!caseSensitive){text=text.toLowerCase();alphabet=alphabet.toLowerCase()}var length=text.length;var i;var absBase=Math.abs(base);var alphabetValues={};for(i=0;i<alphabet.length;i++){alphabetValues[alphabet[i]]=i}for(i=0;i<length;i++){var c=text[i];if(c==="-")continue;if(c in alphabetValues){if(alphabetValues[c]>=absBase){if(c==="1"&&absBase===1)continue;throw new Error(c+" is not a valid digit in base "+base+".")}}}base=parseValue(base);var digits=[];var isNegative=text[0]==="-";for(i=isNegative?1:0;i<text.length;i++){var c=text[i];if(c in alphabetValues)digits.push(parseValue(alphabetValues[c]));else if(c==="<"){var start=i;do{i++}while(text[i]!==">"&&i<text.length);digits.push(parseValue(text.slice(start+1,i)))}else throw new Error(c+" is not a valid character")}return parseBaseFromArray(digits,base,isNegative)};function parseBaseFromArray(digits,base,isNegative){var val=Integer[0],pow=Integer[1],i;for(i=digits.length-1;i>=0;i--){val=val.add(digits[i].times(pow));pow=pow.times(base)}return isNegative?val.negate():val}function stringify(digit,alphabet){alphabet=alphabet||DEFAULT_ALPHABET;if(digit<alphabet.length){return alphabet[digit]}return"<"+digit+">"}function toBase(n,base){base=bigInt(base);if(base.isZero()){if(n.isZero())return{value:[0],isNegative:false};throw new Error("Cannot convert nonzero numbers to base 0.")}if(base.equals(-1)){if(n.isZero())return{value:[0],isNegative:false};if(n.isNegative())return{value:[].concat.apply([],Array.apply(null,Array(-n.toJSNumber())).map(Array.prototype.valueOf,[1,0])),isNegative:false};var arr=Array.apply(null,Array(n.toJSNumber()-1)).map(Array.prototype.valueOf,[0,1]);arr.unshift([1]);return{value:[].concat.apply([],arr),isNegative:false}}var neg=false;if(n.isNegative()&&base.isPositive()){neg=true;n=n.abs()}if(base.isUnit()){if(n.isZero())return{value:[0],isNegative:false};return{value:Array.apply(null,Array(n.toJSNumber())).map(Number.prototype.valueOf,1),isNegative:neg}}var out=[];var left=n,divmod;while(left.isNegative()||left.compareAbs(base)>=0){divmod=left.divmod(base);left=divmod.quotient;var digit=divmod.remainder;if(digit.isNegative()){digit=base.minus(digit).abs();left=left.next()}out.push(digit.toJSNumber())}out.push(left.toJSNumber());return{value:out.reverse(),isNegative:neg}}function toBaseString(n,base,alphabet){var arr=toBase(n,base);return(arr.isNegative?"-":"")+arr.value.map(function(x){return stringify(x,alphabet)}).join("")}BigInteger.prototype.toArray=function(radix){return toBase(this,radix)};SmallInteger.prototype.toArray=function(radix){return toBase(this,radix)};NativeBigInt.prototype.toArray=function(radix){return toBase(this,radix)};BigInteger.prototype.toString=function(radix,alphabet){if(radix===undefined)radix=10;if(radix!==10||alphabet)return toBaseString(this,radix,alphabet);var v=this.value,l=v.length,str=String(v[--l]),zeros="0000000",digit;while(--l>=0){digit=String(v[l]);str+=zeros.slice(digit.length)+digit}var sign=this.sign?"-":"";return sign+str};SmallInteger.prototype.toString=function(radix,alphabet){if(radix===undefined)radix=10;if(radix!=10||alphabet)return toBaseString(this,radix,alphabet);return String(this.value)};NativeBigInt.prototype.toString=SmallInteger.prototype.toString;NativeBigInt.prototype.toJSON=BigInteger.prototype.toJSON=SmallInteger.prototype.toJSON=function(){return this.toString()};BigInteger.prototype.valueOf=function(){return parseInt(this.toString(),10)};BigInteger.prototype.toJSNumber=BigInteger.prototype.valueOf;SmallInteger.prototype.valueOf=function(){return this.value};SmallInteger.prototype.toJSNumber=SmallInteger.prototype.valueOf;NativeBigInt.prototype.valueOf=NativeBigInt.prototype.toJSNumber=function(){return parseInt(this.toString(),10)};function parseStringValue(v){if(isPrecise(+v)){var x=+v;if(x===truncate(x))return supportsNativeBigInt?new NativeBigInt(BigInt(x)):new SmallInteger(x);throw new Error("Invalid integer: "+v)}var sign=v[0]==="-";if(sign)v=v.slice(1);var split=v.split(/e/i);if(split.length>2)throw new Error("Invalid integer: "+split.join("e"));if(split.length===2){var exp=split[1];if(exp[0]==="+")exp=exp.slice(1);exp=+exp;if(exp!==truncate(exp)||!isPrecise(exp))throw new Error("Invalid integer: "+exp+" is not a valid exponent.");var text=split[0];var decimalPlace=text.indexOf(".");if(decimalPlace>=0){exp-=text.length-decimalPlace-1;text=text.slice(0,decimalPlace)+text.slice(decimalPlace+1)}if(exp<0)throw new Error("Cannot include negative exponent part for integers");text+=new Array(exp+1).join("0");v=text}var isValid=/^([0-9][0-9]*)$/.test(v);if(!isValid)throw new Error("Invalid integer: "+v);if(supportsNativeBigInt){return new NativeBigInt(BigInt(sign?"-"+v:v))}var r=[],max=v.length,l=LOG_BASE,min=max-l;while(max>0){r.push(+v.slice(min,max));min-=l;if(min<0)min=0;max-=l}trim(r);return new BigInteger(r,sign)}function parseNumberValue(v){if(supportsNativeBigInt){return new NativeBigInt(BigInt(v))}if(isPrecise(v)){if(v!==truncate(v))throw new Error(v+" is not an integer.");return new SmallInteger(v)}return parseStringValue(v.toString())}function parseValue(v){if(typeof v==="number"){return parseNumberValue(v)}if(typeof v==="string"){return parseStringValue(v)}if(typeof v==="bigint"){return new NativeBigInt(v)}return v}for(var i=0;i<1e3;i++){Integer[i]=parseValue(i);if(i>0)Integer[-i]=parseValue(-i)}Integer.one=Integer[1];Integer.zero=Integer[0];Integer.minusOne=Integer[-1];Integer.max=max;Integer.min=min;Integer.gcd=gcd;Integer.lcm=lcm;Integer.isInstance=function(x){return x instanceof BigInteger||x instanceof SmallInteger||x instanceof NativeBigInt};Integer.randBetween=randBetween;Integer.fromArray=function(digits,base,isNegative){return parseBaseFromArray(digits.map(parseValue),parseValue(base||10),isNegative)};return Integer}();if(typeof module!=="undefined"&&module.hasOwnProperty("exports")){module.exports=bigInt}if(typeof define==="function"&&define.amd){define(function(){return bigInt})};
+                
+                var MXP = {
+                  Uri: {
+                    Mob: {
+                      Command: '{#MOB_URI}/XProtectMobile/Communication',
+                      Video: '{#MOB_URI}/XProtectMobile/Video/',
+                      Audio: '{#MOB_URI}/XProtectMobile/Audio/'
+                    }
+                  },
+                  Srv: {
+                    Mob: {
+                        displayName: "{#MOB_DNAME}",
+                        id: "{#MOB_ID}",
+                        uri: "{#MOB_URI}",
+                        version: "{#MOB_VER}",
+                        enabled: "{#MOB_ENABLED}",
+                        PublicKey: null,
+                        ConnectionId: null,
+                        CommandSequenceId: 0
+                      }
+                  },
+                  _pvt: {
+                    request: null,
+                    response: null,
+                    privateKey: null,
+                    primeBigInt: null,
+                    sharedKey: null
+                  },
+                  requestMob: function (command, inputParams) {
+                    this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                    if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                    this._pvt.request.addHeader("Content-Type: application/xml");
+                    this.Srv.Mob.CommandSequenceId++;
+                    var nodeConnId = (this.Srv.Mob.ConnectionId) ? '<ConnectionId>' + this.Srv.Mob.ConnectionId + '</ConnectionId>' : '<ConnectionId/>';
+                    var nodeIput = (inputParams) ? '<InputParams>' + inputParams + '</InputParams>' : '<InputParams/>';
+                    var msg = '<?xml version="1.0" encoding="utf-8"?>' +
+                    '<Communication xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+                          nodeConnId +
+                          '<Command SequenceId="' + this.Srv.Mob.CommandSequenceId + '">' +
+                            '<Type>Request</Type>' +
+                            '<Name>' + command + '</Name>' +
+                            nodeIput +
+                            '<OutputParams/>' +
+                          '</Command>' +
+                    '</Communication>';
+                    this._pvt.response = this._pvt.request.post(this.Uri.Mob.Command, msg);
+                    if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                      throw this._pvt.request.getStatus();
+                    }
+                    try {
+                      var r = JSON.parse(XML.toJson(this._pvt.response));
+                      if(r.Communication.Command.Result != 'OK')
+                        throw r.Communication.Command.ErrorCode;
+                      if(r.Communication.Command.Name === 'GetServerStatus')
+                        return r.Communication.Command.ServerStatus;
+                      var outputParams = {};
+                      r.Communication.Command.OutputParams.Param.map(function(param) {
+                        outputParams[param["@Name"]] = param["@Value"];
+                      });
+                      return outputParams;
+                    }
+                    catch (error) {
+                      throw error;
+                    }
+                  },
+                  disconnect: function () {
+                    try {
+                      this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                      if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                      var msg = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>' +
+                      '<Communication>' +
+                        '<ConnectionId>' + this.Srv.Mob.ConnectionId + '</ConnectionId>' +
+                        '<Command>' +
+                          '<Type>Request</Type>' +
+                          '<Name>Disconnect</Name>' +
+                          '<InputParams />' +
+                        '</Command>' +
+                      '</Communication>';
+                      this._pvt.response = this._pvt.request.post(this.Uri.Mob.Command, msg);
+                    }
+                    catch (error) {
+                      //Avoid any error, all data already gathered
+                    }
+                  },
+                  connect: function (publicKeyBase64) {
+                    var primeLength = (publicKeyBase64.length > 172) ? 2048 : 1024;
+                    var input = '<Param Name="PublicKey" Value="' + publicKeyBase64 + '"/>' +
+                    '<Param Name="PrimeLength" Value="' + primeLength + '" />' +
+                    '<Param Name="EncryptionPadding" Value="PKCS7" />' +
+                    '<Param Name="ProcessingMessage" Value="No" />';
+                    try {
+                      var r = this.requestMob('Connect', input);
+                      this.Srv.Mob.PublicKey = r.PublicKey;
+                      this.Srv.Mob.ConnectionId = r.ConnectionId;
+                      this._pvt.sharedKey = this.getDHsharedKey(this.Srv.Mob.PublicKey).match(/.{2}/g).reverse().join('');
+                      return r;
+                    }
+                    catch (error) {
+                      throw error;
+                    }
+                  },
+                  login: function (user, password) {
+                    const key = CryptoJS.enc.Hex.parse(this._pvt.sharedKey.substring(32, 96));
+                    const iv = CryptoJS.enc.Hex.parse(this._pvt.sharedKey.substring(0, 32));
+                    const paramsEncrypt = { 
+                      iv,
+                      padding: CryptoJS.pad.Pkcs7,
+                     };   
+                    const u = CryptoJS.AES.encrypt(user, key, paramsEncrypt).ciphertext.toString(CryptoJS.enc.Base64);
+                    const p = CryptoJS.AES.encrypt(password, key, paramsEncrypt).ciphertext.toString(CryptoJS.enc.Base64);
+                    var input = '<Param Name="Password" Value="' + p + '"/>' +
+                    '<Param Name="Username" Value="' + u + '" />' +
+                    '<Param Name="ClientType" Value="WebClient" />' +
+                    '<Param Name="ProcessingMessage" Value="No" />';
+                    try {
+                      var r = this.requestMob('Login', input);
+                      return r;
+                    }
+                    catch (error) {
+                      throw error;
+                    }
+                  },
+                  getServerStatus: function () {
+                    try {
+                      var r = this.requestMob('GetServerStatus');
+                      return r;
+                    }
+                    catch (error) {
+                      throw error;
+                    }
+                  },
+                  btoa: function(str){
+                    var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+                    var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+                    var i = 0;
+                    while (i < str.length) {
+                        chr1 = str.charCodeAt(i++);
+                        chr2 = i < str.length ? str.charCodeAt(i++) : NaN;
+                        chr3 = i < str.length ? str.charCodeAt(i++) : NaN;
+                        enc1 = chr1 >> 2;
+                        enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                        enc3 = isNaN(chr2) ? 64 : ((chr2 & 15) << 2) | (chr3 >> 6);
+                        enc4 = isNaN(chr3) ? 64 : chr3 & 63;
+                        output += keyStr.charAt(enc1) + keyStr.charAt(enc2) + keyStr.charAt(enc3) + keyStr.charAt(enc4);
+                    }
+                    return output;
+                  },
+                  atob: function(input) {
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+                    var str = String(input).replace(/=+$/, '');
+                    var output = '';
+                    for (var i = 0; i < str.length;) {
+                        const char1 = chars.indexOf(str.charAt(i++));
+                        const char2 = chars.indexOf(str.charAt(i++));
+                        const char3 = chars.indexOf(str.charAt(i++));
+                        const char4 = chars.indexOf(str.charAt(i++));
+                        const bits = (char1 << 18) | (char2 << 12) | (char3 << 6) | char4;
+                        output += String.fromCharCode((bits >> 16) & 0xff, (bits >> 8) & 0xff, bits & 0xff);
+                    }
+                    return output;
+                  },
+                  keyFromBase64: function (base64KeyString) {
+                    // Use custom atob due to some inconsistent output with builtin atob function 
+                    var binaryString = this.atob(base64KeyString);
+                    // Convert binary string to hex string:
+                    var hexString = '';
+                    for (var i = 0; i < binaryString.length; i++) {
+                      var hex = binaryString.charCodeAt(i).toString(16);
+                      hexString += (hex.length === 2 ? hex : '0' + hex);
+                    }
+                    // Reverse and join hex pairs:
+                    var reversedHex = hexString.match(/[a-fA-F0-9]{2}/g).reverse().join('');
+                    return reversedHex;
+                  },
+                  keyToBase64: function (hexKeyString) {
+                    // Fix hex length and convert to little-endian order
+                    var hexString = (hexKeyString.length % 2 !== 0) ? '0' + hexKeyString.match(/.{2}/g).reverse().join('') : hexKeyString.match(/.{2}/g).reverse().join('');
+                    // If hex string length is 256(128 byte) a zero byte should be added before the resulting 129 bytes are base64 encoded
+                    if(hexString.length === 256) {
+                      hexString = hexString + '00';
+                    }
+                    // Use custom btoa due to some inconsistent output with builtin btoa function 
+                    return this.btoa(hexString.match(/.{2}/g).map(function(a) {
+                      return String.fromCharCode(parseInt(a, 16));
+                    }).join(""));
+                  },
+                  // Prime generator
+                  getPrime: function (primeBitLength, useRandomPrime) {
+                    var bitL, prime;
+                    bitL = (primeBitLength === 2048) ? 2048 : 1024;
+                    if(useRandomPrime === true) {
+                      var min = bigInt('2').pow(primeBitLength - 1);
+                      var max = bigInt('2').pow(primeBitLength).subtract(bigInt.one);
+                      do {
+                        prime = bigInt.randBetween(min, max);
+                      } while (!prime.isProbablePrime(10));
+                    }
+                    else {
+                      prime = bigInt('{$MILESTONE.MOBILE.DH.PRIME}', 16);
+                    }
+                    this._pvt.primeBigInt = prime;
+                    return prime;
+                  },
+                  generateDHkeys: function (primeBitLength, useRandomPrime) {
+                    var prime = this.getPrime(primeBitLength, useRandomPrime);
+                    var generator = bigInt('2');
+                    // Generate a random key (a random number less than prime)
+                    this._pvt.privateKey = bigInt.randBetween(bigInt.one, prime.subtract(bigInt.one));
+                    // Calculate the public key and convert to hex
+                    var publicKey = generator.modPow(this._pvt.privateKey, prime).toString(16);
+                    var publicKeyBase64 = this.keyToBase64(publicKey);
+                    MXP.publicKey = publicKey;
+                    return publicKeyBase64;
+                  },
+                  getDHsharedKey: function (base64PublicKey) {
+                    var serverKey = this.keyFromBase64(base64PublicKey);
+                    var sharedSecret = bigInt(serverKey, 16).modPow(this._pvt.privateKey,this._pvt.primeBigInt).toString(16);
+                    this._pvt.sharedKey = (sharedSecret.length % 2 !== 0) ? '0' + sharedSecret : sharedSecret;
+                    return sharedSecret;
+                  },
+                  loginProcess: function (user, password) {
+                    var publicKeyBase64, primeLength, useRandomePrime;
+                    primeLength = parseInt('{$MILESTONE.MOBILE.DH.USERANDOM}');
+                    useRandomePrime = (primeLength === 1024 || primeLength === 2048) ? true : false;
+                    if(useRandomePrime) publicKeyBase64 = this.generateDHkeys(primeLength, true);
+                    else {
+                      var defaultPrime = '{$MILESTONE.MOBILE.DH.PRIME}';
+                      primeLength = (defaultPrime.length === 256) ? 1024 : 2048;
+                      publicKeyBase64 = this.generateDHkeys(primeLength, false);
+                    }
+                    var c = this.connect(publicKeyBase64);
+                    var l = this.login(user, password);
+                  }
+                }
+                
+                var params = JSON.parse(value);
+                try {
+                  try {
+                    var l = MXP.loginProcess(params.USER, params.PASSWORD);
+                  }
+                  catch (error) {
+                    // Sometimes DH process fails, so try a second time or die
+                    if(parseInt(error) === 16) l = MXP.loginProcess(params.USER, params.PASSWORD);
+                    else throw error;
+                  }
+                  var s = MXP.getServerStatus();
+                  var d = MXP.disconnect();
+                  s.ZabbixError = "0"
+                  return JSON.stringify(s);
+                }
+                catch (error) {
+                  console.error("Milestone XProtect [{#MOB_DNAME}]: " + error);
+                  var eInt = parseInt(error);
+                  var err = (isNaN(eInt) && error.toString().match(/timeout/i) !== null) ? 998 : (isNaN(eInt) ? 999 : eInt);
+                  return JSON.stringify({ZabbixError: err});
+                }
+              description: 'Master item implementing Mobile Server communication protocol'
+              timeout: '60'
+              parameters:
+                - name: PASSWORD
+                  value: '{$MILESTONE.PASSWORD}'
+                - name: USER
+                  value: '{$MILESTONE.USER}'
+              tags:
+                - tag: component
+                  value: mobile
+            - uuid: c13388d7cee54c3db7d813a249848880
+              name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: Get'
+              key: 'web.certificate.get[{#MOB_SSL_HOSTNAME},{#MOB_SSL_PORT},{#MOB_SSL_IP}]'
+              delay: 15m
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              description: |
+                Mobile server streaming media certificate.
+                Returns the JSON with attributes of certificate.
+                
+                Requires Zabbix Agent 2 instance.
+                If above agent is not available on Milestone Management Server as workaround add a secondary Host Interface of Type Agent pointing to any available agent, i.e. 127.0.0.1 for Zabbix Server agent, then select this interface on Host's LLD rule.
+                
+                Hopefully this will be implemented as Simple check in the future (https://support.zabbix.com/browse/ZBXNEXT-8140)
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: mobile
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = MXP.Srv.Mob.map(function(obj) {
+                      var item = {
+                          "{#MOB_DNAME}": obj.displayName,
+                          "{#MOB_ID}": obj.id,
+                          "{#MOB_URI}": obj.uri,
+                          "{#MOB_VER}": obj.version,
+                          "{#MOB_ENABLED}": obj.enabled,
+                      };
+                      var ssl = obj.uri.toLowerCase().startsWith("https") ? true : false;
+                      if (ssl) {
+                          item["{#SSL}"] = ssl;
+                          var match = obj.uri.match(/:\/\/([^:\/]+)(?::(\d+))?(\/|$)/);
+                          item["{#MOB_SSL_PORT}"] = (match && match[2]) ? match[2] : "";
+                          item["{#MOB_SSL_HOSTNAME}"] = (match && match[1]) ? match[1] : "";
+                          item["{#MOB_SSL_IP}"] = (match && match[1] && match[1].match(/^\d+\.\d+\.\d+\.\d+$/)) ? match[1] : "";
+                      }
+                      return item;
+                  });
+                  
+                  return JSON.stringify(lld);
+          overrides:
+            - name: 'Certificate discover'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#SSL}'
+                    operator: EXISTS
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: LIKE
+                  value: 'Certificate: Get'
+                  discover: DISCOVER
+        - uuid: c89554fcc4e449848d66d1fa6e4d9f4f
+          name: 'Recording Servers'
+          type: DEPENDENT
+          key: mxp.discovery.rec
+          delay: '0'
+          item_prototypes:
+            - uuid: 7fe7610eba474c759efb1c21270b761c
+              name: 'Milestone: [REC] {#REC_DNAME} Certificate: Fingerprint'
+              type: DEPENDENT
+              key: 'mxp.rec.cert[{#REC_ID}.fingerprint]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              description: 'The Certificate Signature (SHA1 Fingerprint or Thumbprint) is the hash of the entire certificate in DER form.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.sha1_fingerprint
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#SSL_HOSTNAME},{#SSL_PORT},{#SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: recorder
+              trigger_prototypes:
+                - uuid: 35b58f051cd04e46b187656893ecba46
+                  expression: 'last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint],#2)'
+                  name: 'Milestone: [REC] {#REC_DNAME} Certificate: Fingerprint has changed'
+                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  priority: INFO
+                  description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
+                  manual_close: 'YES'
+            - uuid: eaa212111942454482c34dcd2e1ed206
+              name: 'Milestone: [REC] {#REC_DNAME} Certificate: Expires on'
+              type: DEPENDENT
+              key: 'mxp.rec.cert[{#REC_ID}.notAfter]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: unixtime
+              description: 'The date on which the certificate validity period ends.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.x509.not_after.timestamp
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'web.certificate.get[{#SSL_HOSTNAME},{#SSL_PORT},{#SSL_IP}]'
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: recorder
+              trigger_prototypes:
+                - uuid: 4e6d2305737749c3b06689bcd3025248
+                  expression: '(last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
+                  name: 'Milestone: [REC] {#REC_DNAME} Certificate: expires soon'
+                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  priority: WARNING
+                  description: 'The encryption certificate should be updated or it will become untrusted.'
+            - uuid: 5ccf362e691a44f5989db9c318abbabc
+              name: 'Milestone: [REC] {#REC_DNAME} status'
+              type: SCRIPT
+              key: 'mxp.rec.status[{#REC_ID}]'
+              history: 30d
+              trends: '0'
+              value_type: CHAR
+              params: |
+                var MXP = {
+                    Auth: {
+                        XProtect: {
+                            Token: '{#TOKEN}',
+                            Expiration: '{#TOKEN_EXP}'
+                        }
+                    },
+                    Rec : {
+                        Id: '{#REC_ID}',
+                        Uri: '{#REC_URI}'
+                    },
+                    _pvt: {
+                        request: null,
+                        response: null,
+                    },
+                    
+                    requestSoap: function (uri, soapAction, data) {
+                        this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                        if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                
+                        this._pvt.request.addHeader("Content-Type: application/soap+xml;charset=UTF-8;action='" + soapAction + "'");
+                            
+                        this._pvt.response = this._pvt.request.post(uri, data);
+                
+                        if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                            throw 'SOAP request failed with status code ' + this._pvt.request.getStatus();
+                        }
+                
+                        try {
+                            return JSON.parse(XML.toJson(this._pvt.response));
+                        }
+                        catch (error) {
+                            throw 'Failed to parse response received from SOAP svc';
+                        }
+                    },
+                    getRecorderStatus: function () {
+                        var soapAction, soapMsg;
+                        soapAction = "http://videoos.net/2/XProtectCSRecorderStatus2/GetRecorderStatus";
+                        soapMsg = "<soap:Envelope xmlns:soap='http://www.w3.org/2003/05/soap-envelope' xmlns:xpr='http://videoos.net/2/XProtectCSRecorderStatus2'>" +
+                        "<soap:Header/>" +
+                        "<soap:Body>" +
+                        "<xpr:GetRecorderStatus>" +
+                        "<xpr:token>" + this.Auth.XProtect.Token + "</xpr:token>" +
+                        "</xpr:GetRecorderStatus>" +
+                        "</soap:Body>" +
+                        "</soap:Envelope>";
+                        try {
+                            var r = this.requestSoap(this.Rec.Uri, soapAction, soapMsg);
+                            return r.Envelope.Body.GetRecorderStatusResponse.GetRecorderStatusResult.ConnectionState;
+                        }
+                        catch (error) {
+                            throw error;
+                        }
+                    },
+                }
+                try {
+                    return MXP.getRecorderStatus();
+                }
+                catch(e) {
+                
+                }
+              description: |
+                Recording server to Management server connection state.
+                Retrieved directly from recording server.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              timeout: 30s
+              tags:
+                - tag: component
+                  value: recorder
+              trigger_prototypes:
+                - uuid: 8ca3ddc9eb314a1091c6f4d8b707324f
+                  expression: 'last(/Milestone XProtect/mxp.rec.status[{#REC_ID}])<>"Connected"'
+                  name: 'Milestone: [REC] {#REC_DNAME} status'
+                  priority: HIGH
+                  description: 'Recorder Server to Management Server communication error'
+            - uuid: 221012321e65494d9c37ba8a2504b123
+              name: 'Milestone: [REC] {#REC_DNAME} Certificate: Get'
+              key: 'web.certificate.get[{#SSL_HOSTNAME},{#SSL_PORT},{#SSL_IP}]'
+              delay: 15m
+              history: '0'
+              trends: '0'
+              discover: NO_DISCOVER
+              value_type: TEXT
+              description: |
+                Recording server streaming media certificate.
+                Returns the JSON with attributes of certificate.
+                
+                Requires Zabbix Agent 2 instance.
+                If above agent is not available on Milestone Management Server as workaround add a secondary Host Interface of Type Agent pointing to any available agent, i.e. 127.0.0.1 for Zabbix Server agent, then select this interface on Host's LLD rule.
+                
+                Hopefully this will be implemented as Simple check in the future (https://support.zabbix.com/browse/ZBXNEXT-8140)
+              tags:
+                - tag: component
+                  value: cert
+                - tag: component
+                  value: recorder
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = MXP.Srv.Rec.map(function(obj) {
+                      var item = {
+                          "{#REC_DNAME}": obj.displayName,
+                          "{#REC_ID}": obj.id,
+                          "{#REC_URI}": obj.uri,
+                          "{#TOKEN}": MXP.Auth.XProtect.Token,
+                          "{#TOKEN_EXP}": MXP.Auth.XProtect.Expiration
+                      };
+                      var ssl = obj.uri.toLowerCase().startsWith("https") ? true : false;
+                      if (ssl) {
+                          item["{#SSL}"] = ssl;
+                          var match = obj.uri.match(/:\/\/([^:\/]+)(?::(\d+))?(\/|$)/);
+                          item["{#SSL_PORT}"] = (match && match[2]) ? match[2] : "";
+                          item["{#SSL_HOSTNAME}"] = (match && match[1]) ? match[1] : "";
+                          item["{#SSL_IP}"] = (match && match[1] && match[1].match(/^\d+\.\d+\.\d+\.\d+$/)) ? match[1] : "";
+                      }
+                      return item;
+                  });
+                  
+                  return JSON.stringify(lld);
+          overrides:
+            - name: 'Certificate discover'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#SSL}'
+                    operator: EXISTS
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: LIKE
+                  value: 'Certificate: Get'
+                  discover: DISCOVER
+        - uuid: 446ed94365654a7a8fc9676d984112e5
+          name: Storages
+          type: DEPENDENT
+          key: mxp.discovery.storages
+          delay: '0'
+          item_prototypes:
+            - uuid: 85b60a0f3d9548ccb450ad31adb3b754
+              name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} space available'
+              type: DEPENDENT
+              key: 'mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}.sa]'
+              delay: '0'
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.StorageId == ''{#REC_STORAGE_ID}'')]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var storageInfo = JSON.parse(value);
+                      var storage = storageInfo[0];
+                      var usedSpace = parseFloat(storage.UsedSpaceInBytes);
+                      var freeSpace = parseFloat(storage.FreeSpaceInBytes);
+                      var totalSpace = usedSpace + freeSpace;
+                      var availablePercentage = (freeSpace / totalSpace) * 100;
+                      return parseInt(availablePercentage);
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}]'
+              tags:
+                - tag: component
+                  value: storage
+              trigger_prototypes:
+                - uuid: af29880da2ee4392a9f93bde36738caa
+                  expression: 'last(/Milestone XProtect/mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}.sa])<{$MILESTONE.STORAGE.WARN}'
+                  name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} space available is low'
+                  opdata: 'Space available: {ITEM.VALUE}%'
+                  priority: WARNING
+            - uuid: 23efe0b75aeb40aca579125c113066a4
+              name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} status'
+              type: DEPENDENT
+              key: 'mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}.status]'
+              delay: '0'
+              valuemap:
+                name: 'Storage status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.StorageId == ''{#REC_STORAGE_ID}'')]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var storageInfo = JSON.parse(value);
+                      var storage = storageInfo[0];
+                      var available = storage.Available === "true";
+                      var mounted = storage.Mounted === "true";
+                      if (!mounted) {
+                        return 1;
+                      }
+                      if (!available) {
+                        return 2;
+                      }
+                      return 0;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}]'
+              tags:
+                - tag: component
+                  value: storage
+              trigger_prototypes:
+                - uuid: 8242b5d7adce43e6a9810e8585bc0a25
+                  expression: 'last(/Milestone XProtect/mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}.status])<> 0'
+                  name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} status'
+                  opdata: 'Storage state is {ITEM.VALUE}'
+                  priority: HIGH
+            - uuid: 909b8c3e783940c49c4034750e2364b2
+              name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME}'
+              type: SCRIPT
+              key: 'mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}]'
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              params: |
+                var MXP = {
+                    Auth: {
+                        XProtect: {
+                            Token: '{#TOKEN}',
+                            Expiration: '{#TOKEN_EXP}'
+                        }
+                    },
+                    Rec : {
+                        Id: '{#REC_ID}',
+                        Uri: '{#REC_URI}'
+                    },
+                    _pvt: {
+                        request: null,
+                        response: null,
+                    },
+                    
+                    requestSoap: function (uri, soapAction, data) {
+                        this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
+                        if (!this._pvt.response) this._pvt.response = new HttpRequest();
+                
+                        this._pvt.request.addHeader("Content-Type: application/soap+xml;charset=UTF-8;action='" + soapAction + "'");
+                            
+                        this._pvt.response = this._pvt.request.post(uri, data);
+                
+                        if (this._pvt.request.getStatus() !== 200 || this._pvt.response === null) {
+                            throw 'SOAP request failed with status code ' + this._pvt.request.getStatus();
+                        }
+                
+                        try {
+                            return JSON.parse(XML.toJson(this._pvt.response));
+                        }
+                        catch (error) {
+                            throw 'Failed to parse response received from SOAP svc';
+                        }
+                    },
+                    getRecordingStorageStatus: function () {
+                        var soapAction, soapMsg;
+                        soapAction = "http://videoos.net/2/XProtectCSRecorderStatus2/GetRecordingStorageStatus";
+                        soapMsg = "<soap:Envelope xmlns:soap='http://www.w3.org/2003/05/soap-envelope' xmlns:xpr='http://videoos.net/2/XProtectCSRecorderStatus2'>" +
+                        "<soap:Header/>" +
+                        "<soap:Body>" +
+                        "<xpr:GetRecordingStorageStatus>" +
+                        "<xpr:token>" + this.Auth.XProtect.Token + "</xpr:token>" +
+                        "</xpr:GetRecordingStorageStatus>" +
+                        "</soap:Body>" +
+                        "</soap:Envelope>";
+                        try {
+                            return this.requestSoap(this.Rec.Uri, soapAction, soapMsg);
+                        }
+                        catch (error) {
+                            throw error;
+                        }
+                    },
+                }
+                try {
+                    return JSON.stringify(MXP.getRecordingStorageStatus());
+                }
+                catch(e) {
+                
+                }
+              description: |
+                Gets recording storage status.
+                Retrieved directly from recording server.
+              timeout: 30s
+              tags:
+                - tag: component
+                  value: storage
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = [];
+                  
+                  MXP.Srv.Rec.forEach(function(rec) {
+                      rec.storages.forEach(function(storage) {
+                          var obj = {
+                              "{#REC_DNAME}": rec.displayName,
+                              "{#REC_ID}": rec.id,
+                              "{#REC_URI}": rec.uri,
+                              "{#REC_STORAGE_DNAME}": storage.displayName,
+                              "{#REC_STORAGE_ID}": storage.id,
+                              "{#REC_STORAGE_PATH}": storage.path,
+                              "{#TOKEN}": MXP.Auth.XProtect.Token,
+                              "{#TOKEN_EXP}": MXP.Auth.XProtect.Expiration
+                          };
+                          lld.push(obj);
+                      });
+                  });
+                  
+                  return JSON.stringify(lld);
+        - uuid: 65f471327b2b42d895c4eeb531de8984
+          name: Services
+          type: DEPENDENT
+          key: mxp.discovery.svc
+          delay: '0'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SVC_TYPE}'
+                value: 7510bbae-dba5-4c2e-b037-74a0222484c6
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+              - macro: '{#SVC_TYPE}'
+                value: a10cd823-bb4e-4d31-a162-dd236fc78fa6
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#SVC_TYPE}'
+                value: e46b7bf9-03ce-44eb-bbdc-8ba16d0aaa80
+                operator: NOT_MATCHES_REGEX
+                formulaid: C
+          description: |
+            Registered services discovery.
+            
+            By default filters out:
+              Mobile Server (already discovered by other LLD)
+              Management Server (already discovered by other LLD)
+              Api Gateway (already parsed as default item)
+            
+            
+            Service types:
+              Log server	3d6f1153-92ad-43f1-b467-9482ffd291b2
+              Legacy log server	002b1b2f-0817-4592-8c62-2fe5107c160c
+              Event Server service	08ab8f23-9aef-4298-9caa-f39259fe7cda
+              Incident Manager service	3ce6b5e2-d861-4c0b-9085-00b938b2f45a
+              Report Server	a9f27a6a-9488-44e3-ac0b-0cb1c86ccd2a
+              Management Server	a10cd823-bb4e-4d31-a162-dd236fc78fa6
+              Api Gateway	e46b7bf9-03ce-44eb-bbdc-8ba16d0aaa80
+              Mobile Server	7510bbae-dba5-4c2e-b037-74a0222484c6
+          item_prototypes:
+            - uuid: 70bc57df067c4c91acff393be41ccf27
+              name: 'Milestone: [SVC] {#SVC_NAME}'
+              type: DEPENDENT
+              key: 'mxp.svc[{#SVC_TYPE}.{#SVC_ID}.reachable]'
+              delay: '0'
+              history: 7d
+              description: 'Basic http GET check, returns ok as long as service responds'
+              valuemap:
+                name: 'Service discovery status'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var r = new HttpRequest();
+                          r.get(value);
+                          return r.getStatus();
+                      }
+                      catch(e){
+                          return 0;
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'mxp.svc[{#SVC_TYPE}.{#SVC_ID}.uri]'
+              tags:
+                - tag: component
+                  value: services
+              trigger_prototypes:
+                - uuid: 665fd5080bff41a4929a53ce6ee7fe16
+                  expression: 'last(/Milestone XProtect/mxp.svc[{#SVC_TYPE}.{#SVC_ID}.reachable])=0'
+                  name: 'Milestone: [SVC] {#SVC_NAME} is down'
+                  discover: NO_DISCOVER
+                  priority: WARNING
+            - uuid: 519625453ead48e4a5773d21f6663835
+              name: 'Milestone: [SVC] {#SVC_NAME} uri'
+              type: SCRIPT
+              key: 'mxp.svc[{#SVC_TYPE}.{#SVC_ID}.uri]'
+              delay: 4h
+              history: 7d
+              trends: '0'
+              value_type: CHAR
+              params: 'return ''{#SVC_URI}'';'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              timeout: 10s
+              tags:
+                - tag: component
+                  value: services
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var MXP = JSON.parse(value);
+                  
+                  var lld = MXP.Srv.Svc.map(function(obj) {
+                    if(obj.enabled == "true"){
+                      return {
+                          "{#SVC_NAME}": obj.name,
+                          "{#SVC_ID}": obj.instance,
+                          "{#SVC_URI}": obj.uri,
+                          "{#SVC_TYPE}": obj.type,
+                          };
+                      }
+                   });
+                  
+                  return JSON.stringify(lld);
+          overrides:
+            - name: 'Event Server Trigger'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#SVC_TYPE}'
+                    value: 08ab8f23-9aef-4298-9caa-f39259fe7cda
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: 'Event Server'
+                  discover: DISCOVER
+      macros:
+        - macro: '{$MILESTONE.ARCHIVE.WARN}'
+          value: '10'
+          description: 'Percentage of available archive space remaining that will fire trigger'
+        - macro: '{$MILESTONE.CERT.EXPIRY.WARN}'
+          value: '7'
+          description: 'Number of days until the certificate expires'
+        - macro: '{$MILESTONE.CONN}'
+          value: https
+          description: 'Connection protocol used for initial communication, use ''https'' or ''http'''
+        - macro: '{$MILESTONE.ID}'
+          value: ZABBIX_00
+          description: 'Identifier uniquely identifying Zabbix calling instance. Typically, each ID should refer to a specific machine running this template.'
+        - macro: '{$MILESTONE.LLD_FREQ}'
+          value: 50m
+          description: 'Low-level discovery frequency, keep lower than Milestone token duration which defaults to 60m'
+        - macro: '{$MILESTONE.MOBILE.DH.PRIME}'
+          value: F488FD584E49DBCD20B49DE49107366B336C380D451D0F7C88B31C7C5B2D8EF6F3C923C043F0A55B188D8EBB558CB85D38D334FD7C175743A31D186CDE33212CB52AFF3CE1B1294018118D7C84A70A72D686C40319C807297ACA950CD9969FABD00A509B0246D3083D66A45D419F9C7CBD894B221926BAABA25EC355E92F78C7
+          description: 'Mobile Server expects the username and password to be encrypted with a Diffie-Hellman-Merkle shared secret. This is the prime number used (length 1024 or 2048 bit) in hexadecimal format'
+        - macro: '{$MILESTONE.MOBILE.DH.USERANDOM}'
+          description: 'Set to ''1024'' or ''2048'' if Zabbix has to generate a random prime of choosen length for DH key exchange. Requires huge cpu resources, potentially leading to item timeout. Leave empty if you are not sure.'
+        - macro: '{$MILESTONE.PASSWORD}'
+          type: SECRET_TEXT
+          description: 'XProtect password'
+        - macro: '{$MILESTONE.STORAGE.WARN}'
+          value: '10'
+          description: 'Percentage of available storage space remaining that will fire trigger'
+        - macro: '{$MILESTONE.USER}'
+          description: 'XProtect user'
+      valuemaps:
+        - uuid: 8ee5934875df4a25bdc9e27622fc9308
+          name: 'Camera status'
+          mappings:
+            - value: '0'
+              newvalue: Ok
+            - value: '1'
+              newvalue: 'No Connection'
+            - value: '2'
+              newvalue: 'Not Licensed'
+            - value: '3'
+              newvalue: Error
+            - value: '4'
+              newvalue: 'Overflow error'
+            - value: '5'
+              newvalue: 'Writing Gop error'
+        - uuid: a8b8a21f879242dcbe15082eb37f059c
+          name: 'Mobile error codes'
+          mappings:
+            - value: '0'
+              newvalue: OK
+            - value: '1'
+              newvalue: 'Not implemented'
+            - value: '2'
+              newvalue: 'Not fully implemented'
+            - value: '10'
+              newvalue: 'Bad command type'
+            - value: '11'
+              newvalue: 'Bad command name'
+            - value: '12'
+              newvalue: 'Wrong connection ID'
+            - value: '13'
+              newvalue: 'Missing input parameter'
+            - value: '14'
+              newvalue: 'Wrong input parameter'
+            - value: '15'
+              newvalue: 'Incorrect user password'
+            - value: '16'
+              newvalue: 'Incorrect public key'
+            - value: '17'
+              newvalue: 'Surveillance server down'
+            - value: '18'
+              newvalue: 'License not valid'
+            - value: '19'
+              newvalue: 'Security error'
+            - value: '23'
+              newvalue: 'Not allowed in this state'
+            - value: '24'
+              newvalue: 'Feature is disabled'
+            - value: '25'
+              newvalue: 'Insufficient user rights'
+            - value: '26'
+              newvalue: 'User limitation reached'
+            - value: '27'
+              newvalue: 'New configuration not available'
+            - value: '28'
+              newvalue: 'Addresses not reachable'
+            - value: '30'
+              newvalue: Redirection
+            - value: '31'
+              newvalue: 'Temporary Unavailable'
+            - value: '34'
+              newvalue: SecondStepVerificationRequired
+            - value: '35'
+              newvalue: OnlyUsersWithTwoStepsVerificationAreAllowed
+            - value: '36'
+              newvalue: IncorrectSecondStepVerificationCode
+            - value: '37'
+              newvalue: SecondStepVerificationCodeHasExpired
+            - value: '40'
+              newvalue: ParserError
+            - value: '41'
+              newvalue: BadMethodType
+            - value: '42'
+              newvalue: NoDataInRequest
+            - value: '43'
+              newvalue: InputParameterTooLong
+            - value: '55'
+              newvalue: FeatureNoLongerSupported
+            - value: '60'
+              newvalue: ChangePassword
+            - value: '61'
+              newvalue: AccountLockedOut
+            - value: '998'
+              newvalue: ZabbixItemTimeout
+            - value: '999'
+              newvalue: ZabbixItemError
+        - uuid: aafc0963c8e64ffab7b3d201999f189f
+          name: 'Service discovery status'
+          mappings:
+            - value: '0'
+              newvalue: 'Not responding'
+            - type: GREATER_OR_EQUAL
+              value: '1'
+              newvalue: Ok
+        - uuid: 4351ee513c4340bca53890ca5fe836a4
+          name: 'Storage status'
+          mappings:
+            - value: '0'
+              newvalue: Ok
+            - value: '1'
+              newvalue: Unmounted
+            - value: '2'
+              newvalue: Unavailable
