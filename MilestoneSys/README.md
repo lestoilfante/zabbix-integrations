@@ -6,7 +6,7 @@ A Zabbix template designed to monitor [Milestone XProtect VMS platform](https://
 
 Uses native Milestone SOAP protocols and RESTful APIs allowing a full and documented integration with Management Server, Recording Server, Mobile Server and API Gateway.
 
-Currently supports the discovery of Management Servers, Recording Servers, Mobile Servers, Services, Cameras, Storages, Archives.  
+Currently supports the discovery of Management Servers, Recording Servers, Mobile Servers, Services, Cameras, Storages, Archives and published Hotfixes.  
 All these entities are identified by a tag like [MGM],[REC], etc on discovered Items name, no additional Hosts will be created.
 
 ### Environment
@@ -77,6 +77,7 @@ GNU General Public License version 3 (GPLv3)
 |----|-----------|----|-----------------------|
 |Archives||`Dependent item`|mxp.discovery.archives|
 |Cameras|Discovers all enabled cameras|`Dependent item`|mxp.discovery.cameras|
+|Hotfixes|Retrieves data about available hotfixes from Milestone website|`Dependent item`|mxp.discovery.hotfixes|
 |Management Servers||`Dependent item`|mxp.discovery.mgm|
 |Mobile Servers||`Dependent item`|mxp.discovery.mob|
 |Recording Servers||`Dependent item`|mxp.discovery.rec|
@@ -108,6 +109,17 @@ GNU General Public License version 3 (GPLv3)
 |----|-----------|----------|--------|--------------------------------|
 |Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status||`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])<> 0`|Warning||
 
+### Item prototypes for Hotfixes discovery
+
+|Name|Description|Type|Key and additional info|
+|----|-----------|----|-----------------------|
+|Milestone: [UPD] {#HOTFIX_NAME}|Latest available hotfixes|`Script`|mxp.upd[{#HOTFIX_KEY}]|
+
+### Trigger prototypes for Hotfixes discovery
+|Name|Description|Expression|Severity|Dependencies and additional info|
+|----|-----------|----------|--------|--------------------------------|
+|Milestone: New hotfix available for {#HOTFIX_NAME}||`last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#1)<>last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#2)`|Information||
+
 ### Item prototypes for Management Servers discovery
 
 |Name|Description|Type|Key and additional info|
@@ -120,8 +132,8 @@ GNU General Public License version 3 (GPLv3)
 ### Trigger prototypes for Management Servers discovery
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Milestone: [MGM] {#MGM_HOST} Certificate: expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
-|Milestone: [MGM] {#MGM_HOST} Certificate: Fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint],#2)`|Information||
+|Milestone: [MGM] {#MGM_HOST} certificate expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
+|Milestone: [MGM] {#MGM_HOST} certificate fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint],#2)`|Information||
 
 ### Item prototypes for Mobile Servers discovery
 
@@ -146,8 +158,8 @@ GNU General Public License version 3 (GPLv3)
 ### Trigger prototypes for Mobile Servers discovery
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Milestone: [MOB] {#MOB_DNAME} Certificate: expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
-|Milestone: [MOB] {#MOB_DNAME} Certificate: Fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint],#2)`|Information||
+|Milestone: [MOB] {#MOB_DNAME} certificate expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
+|Milestone: [MOB] {#MOB_DNAME} certificate fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint],#2)`|Information||
 |Milestone: [MOB] {#MOB_DNAME} communication fail|Communication with Mobile Server has failed|`last(/Milestone XProtect/mxp.mob.status[{#MOB_ID}.error])<>0`|Warning||
 |Milestone: [MOB] {#MOB_DNAME} not responding||`last(/Milestone XProtect/mxp.mob.http[{#MOB_ID}]) <> 200`|Average||
 
@@ -163,8 +175,8 @@ GNU General Public License version 3 (GPLv3)
 ### Trigger prototypes for Recording Servers discovery
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Milestone: [REC] {#REC_DNAME} Certificate: expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
-|Milestone: [REC] {#REC_DNAME} Certificate: Fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint],#2)`|Information||
+|Milestone: [REC] {#REC_DNAME} certificate expires soon|The encryption certificate should be updated or it will become untrusted|`(last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}`|Warning||
+|Milestone: [REC] {#REC_DNAME} certificate fingerprint has changed|The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked.<br>Ack to close.|`last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint],#2)`|Information||
 |Milestone: [REC] {#REC_DNAME} status|Recorder Server to Management Server communication error|`last(/Milestone XProtect/mxp.rec.status[{#REC_ID}])<>"Connected"`|High||
 
 ### Item prototypes for Services discovery

@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-05-07T09:36:04Z'
+  date: '2024-06-24T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -399,7 +399,7 @@ zabbix_export:
             - name: wellKnownUris
               value: '{$MILESTONE.CONN}://{HOST.CONN}/api/.well-known/uris'
         - uuid: 0fa8563001e8473c98690c4cbda03042
-          name: 'Milestone: Product name'
+          name: 'Milestone: XProtect Product name'
           type: DEPENDENT
           key: mxp.info.pn
           delay: '0'
@@ -416,7 +416,7 @@ zabbix_export:
           master_item:
             key: mxp.info
         - uuid: 5dffa63e96a7426188c9735fc21a8267
-          name: 'Milestone: Product version'
+          name: 'Milestone: XProtect Product version'
           type: DEPENDENT
           key: mxp.info.pv
           delay: '0'
@@ -433,7 +433,7 @@ zabbix_export:
           master_item:
             key: mxp.info
         - uuid: f48dd2eb3d464421b67495b1feebc7fa
-          name: 'Milestone: Product SLC'
+          name: 'Milestone: XProtect Product SLC'
           type: DEPENDENT
           key: mxp.info.slc
           delay: '0'
@@ -834,6 +834,119 @@ zabbix_export:
                   });
                   
                   return JSON.stringify(lld);
+        - uuid: 233c565dee5846fca4730859dc8fe5a1
+          name: Hotfixes
+          type: DEPENDENT
+          key: mxp.discovery.hotfixes
+          delay: '0'
+          lifetime: 7d
+          description: 'Retrieves data about available hotfixes from Milestone website'
+          item_prototypes:
+            - uuid: a3398fbee3484911814de733bba819e2
+              name: 'Milestone: [UPD] {#HOTFIX_NAME}'
+              type: SCRIPT
+              key: 'mxp.upd[{#HOTFIX_KEY}]'
+              delay: 1d
+              history: 30d
+              trends: '0'
+              value_type: TEXT
+              params: |
+                try {
+                  var hfxUrl = '{#HOTFIX_BASEURL}{#HOTFIX_URL}';
+                  var request = new HttpRequest();
+                  var response = new HttpRequest();
+                  response = request.get(hfxUrl);
+                  if (request.getStatus() !== 200 || response === null) {
+                    throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + hfxUrl;
+                  }
+                  var matches = response.match(/href=".*?ReleaseNotes\.txt"/gm);
+                  if (!matches) throw 'No release notes found';
+                  var releaseFileUrls = [];
+                  matches.forEach(function(m) {
+                    var _m = m.match(/href="(.*?ReleaseNotes\.txt)"/);
+                    if(_m && _m.length == 2) {
+                        releaseFileUrls.push('{#HOTFIX_BASEURL}' + _m[1]);
+                    }
+                  });
+                  if (releaseFileUrls.length == 0) throw 'No release notes found';
+                  var output = '';
+                  releaseFileUrls.forEach(function(fileUrl) {
+                    response = request.get(fileUrl);
+                    if (request.getStatus() !== 200 || response === null) {
+                      throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + fileUrl;
+                    }
+                    var lastMod = JSON.stringify(request.getHeaders(false)).match(/"last-modified":".{5}(.*?)",/i);
+                    if (lastMod && lastMod.length == 2) output += '[' + lastMod[1] + ']\n';
+                    var fixes = response.match(/^.*- \d{4,10}.*$/gm);
+                    if(!fixes || fixes.length == 0) return;
+                    output += fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
+                    output += ('\n');
+                    output += fixes.reverse().join('\n');
+                    output += ('\n\n');
+                  });
+                  return output;
+                }
+                catch(e) {
+                  return 'ERROR: ' + e;
+                }
+              description: |
+                Latest available hotfixes
+                {#HOTFIX_BASEURL}{#HOTFIX_URL}
+              preprocessing:
+                - type: NOT_MATCHES_REGEX
+                  parameters:
+                    - '^ERROR:'
+                  error_handler: CUSTOM_ERROR
+                  error_handler_params: 'An error occurred'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+              timeout: 30s
+              trigger_prototypes:
+                - uuid: 887cf0909b0d4f9d858775fbd1e2c402
+                  expression: 'last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#1)<>last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#2)'
+                  name: 'Milestone: New hotfix available for {#HOTFIX_NAME}'
+                  url: '{#HOTFIX_BASEURL}{#HOTFIX_URL}'
+                  priority: INFO
+                  description: 'A new hotfix has been released'
+          master_item:
+            key: mxp.info.pv
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lld = [];
+                  try {
+                    var mxpVer = value.split('.').slice(0, 2).join('.');
+                    var mxpUrl = 'https://download.milestonesys.com';
+                    var hfxUrl = (mxpUrl + '/MTSKB/hotfixes/' + mxpVer);
+                    var request = new HttpRequest();
+                    var response = new HttpRequest();
+                    response = request.get(hfxUrl);
+                    if (request.getStatus() !== 200 || response === null) {
+                      throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + hfxUrl;
+                    }
+                    var regex = new RegExp('href=".*' + mxpVer.replace('.','\.') + '.*?">.*?<', 'gm');
+                    var matches = response.match(regex);
+                    if (!matches) throw 'No hotfixes found';
+                    regex = new RegExp('href="(.*' + mxpVer.replace('.','\.') + '.*?)">(.*?)<', '');
+                    matches.forEach(function(m) {
+                      var _m = m.match(regex);
+                      if(_m.length == 3) {
+                          var obj = {
+                              "{#HOTFIX_BASEURL}": mxpUrl,
+                              "{#HOTFIX_URL}": _m[1],
+                              "{#HOTFIX_NAME}": _m[2].substring(0, 30),
+                              "{#HOTFIX_KEY}": _m[2].substring(0, 30).replace(' ','').trim()
+                          };
+                          lld.push(obj);
+                      }
+                    });
+                  }
+                  catch(e) {
+                  
+                  }
+                  return JSON.stringify(lld);
         - uuid: f6216955d0044fcca36999f783429778
           name: 'Management Servers'
           type: DEPENDENT
@@ -866,8 +979,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: a3e1fbb311db455e836bb297fc6b3641
                   expression: 'last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.fingerprint],#2)'
-                  name: 'Milestone: [MGM] {#MGM_HOST} Certificate: Fingerprint has changed'
-                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  name: 'Milestone: [MGM] {#MGM_HOST} certificate fingerprint has changed'
+                  opdata: 'New fingerprint: {ITEM.VALUE}'
                   priority: INFO
                   description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
                   manual_close: 'YES'
@@ -897,8 +1010,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: a2e8eb63cdac41b0b4af5d239c77ec27
                   expression: '(last(/Milestone XProtect/mxp.mgm.cert[{#MGM_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
-                  name: 'Milestone: [MGM] {#MGM_HOST} Certificate: expires soon'
-                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  name: 'Milestone: [MGM] {#MGM_HOST} certificate expires soon'
+                  opdata: 'TLS certificate expires on {ITEM.VALUE}'
                   priority: WARNING
                   description: 'The encryption certificate should be updated or it will become untrusted.'
             - uuid: 9b319efa949344d59cd1a480835e08c6
@@ -1009,8 +1122,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 59d7179d4d0c4982a6c5b45669620a9e
                   expression: 'last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.fingerprint],#2)'
-                  name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: Fingerprint has changed'
-                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} certificate fingerprint has changed'
+                  opdata: 'New fingerprint: {ITEM.VALUE}'
                   priority: INFO
                   description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
                   manual_close: 'YES'
@@ -1040,8 +1153,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 3555a12446504b8497f3f2f30ec4757c
                   expression: '(last(/Milestone XProtect/mxp.mob.cert[{#MOB_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
-                  name: 'Milestone: [MOB] {#MOB_DNAME} Certificate: expires soon'
-                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  name: 'Milestone: [MOB] {#MOB_DNAME} certificate expires soon'
+                  opdata: 'TLS certificate expires on {ITEM.VALUE}'
                   priority: WARNING
                   description: 'The encryption certificate should be updated or it will become untrusted.'
             - uuid: 9848a9d69ba640538ff3a22c5ef94762
@@ -1676,8 +1789,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 35b58f051cd04e46b187656893ecba46
                   expression: 'last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint]) <> last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.fingerprint],#2)'
-                  name: 'Milestone: [REC] {#REC_DNAME} Certificate: Fingerprint has changed'
-                  event_name: 'Certificate: Fingerprint has changed (new version: {ITEM.VALUE})'
+                  name: 'Milestone: [REC] {#REC_DNAME} certificate fingerprint has changed'
+                  opdata: 'New fingerprint: {ITEM.VALUE}'
                   priority: INFO
                   description: 'The encryption certificate fingerprint has changed. If you did not update the certificate, it may mean your certificate has been hacked. Ack to close.'
                   manual_close: 'YES'
@@ -1707,8 +1820,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 4e6d2305737749c3b06689bcd3025248
                   expression: '(last(/Milestone XProtect/mxp.rec.cert[{#REC_ID}.notAfter]) - now()) / 86400 < {$MILESTONE.CERT.EXPIRY.WARN}'
-                  name: 'Milestone: [REC] {#REC_DNAME} Certificate: expires soon'
-                  event_name: 'Certificate: TLS certificate expires soon (less than {$MILESTONE.CERT.EXPIRY.WARN} days)'
+                  name: 'Milestone: [REC] {#REC_DNAME} certificate expires soon'
+                  opdata: 'TLS certificate expires on {ITEM.VALUE}'
                   priority: WARNING
                   description: 'The encryption certificate should be updated or it will become untrusted.'
             - uuid: 5ccf362e691a44f5989db9c318abbabc
