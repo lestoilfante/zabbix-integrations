@@ -9,6 +9,8 @@ Uses native Milestone SOAP protocols and RESTful APIs allowing a full and docume
 Currently supports the discovery of Management Servers, Recording Servers, Mobile Servers, Services, Cameras, Storages, Archives and published Hotfixes.  
 All these entities are identified by a tag like [MGM],[REC], etc on discovered Items name, no additional Hosts will be created.
 
+A detailed overview can be found on https://www.itsbalto.com/en/posts/milestone-xprotect-vms-zabbix/
+
 ### Environment
 
 Tested on Milestone XProtect 23R3 with Zabbix 6.0
