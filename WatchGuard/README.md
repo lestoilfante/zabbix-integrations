@@ -59,6 +59,7 @@ There are no template links in this template.
 |ICMP ping|-|`Simple check`|icmpping|
 |ICMP response time|-|`Simple check`|icmppingsec|
 |Latest OS available|Latest OS available found on WatchGuard website|`Dependent item`|wgOShttpCheck<p></p><p>Using Javascript HttpRequest</p>|
+|LiveSecurity Expiration|LiveSecurity service expiration date|`SNMP agent`|sysInfoLS|
 |SNMP agent availability|-|`Zabbix internal`|zabbix[host,snmp,available]|
 |Software version|Current OS|`SNMP agent`|wgSoftwareVersion|
 |Total Memory|-|`SNMP agent`|memTotalReal|
