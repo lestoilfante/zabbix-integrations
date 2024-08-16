@@ -1,29 +1,25 @@
 zabbix_export:
   version: '6.0'
-  date: '2023-04-28T15:01:07Z'
+  date: '2024-08-16T08:51:02Z'
   groups:
-    -
-      uuid: 7df96b18c230490a9a0a9e2307226338
+    - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
   templates:
-    -
-      uuid: 12c537a210ba4d738c964760cc5132ea
+    - uuid: 12c537a210ba4d738c964760cc5132ea
       template: 'Synology Hyper Backup'
       name: 'Synology Hyper Backup'
       description: |
         Check Synology Hyper Backup jobs via DSM Web Api
         
         ## Author
-        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+        Copyright (C) 2024 lestoilfante (https://github.com/lestoilfante)
         
         ## License
         GNU General Public License version 3 (GPLv3)
       groups:
-        -
-          name: Templates
+        - name: Templates
       items:
-        -
-          uuid: 7c749da90cc8457b93f8c6f933efa343
+        - uuid: 7c749da90cc8457b93f8c6f933efa343
           name: 'Hyper Backup: Get status'
           type: SCRIPT
           key: syno.rest.HyperBackupScript
@@ -54,18 +50,20 @@ zabbix_export:
             	else throw "2";
             
             	tasks=respBL.data.task_list;
+            	var reqD, respD;
             	tasks.forEach(checkDetail);
             
             	function checkDetail(t){
             		urlDetail='https://'+p.host+':'+p.port+'/webapi/entry.cgi?api='+p.apiBackup+'&method=status&version=1&blOnline=false&additional=["last_bkp_time","next_bkp_time","last_bkp_result","is_modified","last_bkp_progress"]&task_id='+t.task_id+'&_sid='+Sid;
-            		reqD=new HttpRequest();
+            		reqD ? reqD.clearHeader() : reqD = new HttpRequest();
+            		if (!respD) respD = new HttpRequest();
             		respD=reqD.get(encodeURI(urlDetail),null);
             		if(reqD.getStatus()==200){
             			respD=JSON.parse(respD);
             		}
             		else throw "3";
             		
-            		BkpObject = {"Name":t.name,"Id":t.task_id, "Status":respD.data.status,"Last_Result":respD.data.last_bkp_result, "Last_Date":respD.data.last_bkp_end_time, "Next_Date":respD.data.next_bkp_time};
+            		BkpObject = {"Name":t.name,"Id":t.task_id, "State":respD.data.state, "Status":respD.data.status,"Last_Result":respD.data.last_bkp_result, "Last_Date":respD.data.last_bkp_end_time, "Next_Date":respD.data.next_bkp_time};
             		
             		bkpList.push(BkpObject);
             	}
@@ -101,6 +99,7 @@ zabbix_export:
             [{
             	"Name":"",
             	"Id":"",
+            	"State":"",
             	"Status":"",
             	"Last_Result":"",
             	"Last_Date":"",
@@ -109,49 +108,38 @@ zabbix_export:
             
             In case of error script returns [0-9] converted to generic "error"
           preprocessing:
-            -
-              type: NOT_MATCHES_REGEX
+            - type: NOT_MATCHES_REGEX
               parameters:
                 - '^[0-9]$'
               error_handler: CUSTOM_VALUE
               error_handler_params: error
           timeout: 50s
           parameters:
-            -
-              name: apiAuth
-              value: '{$SYNO.REST.API.AUTH}'
-            -
-              name: passwd
-              value: '{$SYNO.REST.PASSWORD}'
-            -
-              name: account
+            - name: account
               value: '{$SYNO.REST.USER}'
-            -
-              name: version
-              value: '{$SYNO.REST.API.VERSION}'
-            -
-              name: port
-              value: '{$SYNO.REST.API.PORT}'
-            -
-              name: apiBackup
+            - name: apiAuth
+              value: '{$SYNO.REST.API.AUTH}'
+            - name: apiBackup
               value: '{$SYNO.REST.API.BACKUP}'
-            -
-              name: host
-              value: '{HOST.IP}'
+            - name: host
+              value: '{HOST.CONN}'
+            - name: passwd
+              value: '{$SYNO.REST.PASSWORD}'
+            - name: port
+              value: '{$SYNO.REST.API.PORT}'
+            - name: version
+              value: '{$SYNO.REST.API.VERSION}'
           tags:
-            -
-              tag: Application
+            - tag: Application
               value: 'Synology Backup'
           triggers:
-            -
-              uuid: 2a6f340af60748f8acd785a0de1a258c
+            - uuid: 2a6f340af60748f8acd785a0de1a258c
               expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupScript,#1)="error" and last(/Synology Hyper Backup/syno.rest.HyperBackupScript,#2)="error"'
               name: 'Hyper Backup: Get status -failed-'
               priority: WARNING
-              description: 'Cannot retrieve backup task(s) status for 2 consecutive time'
+              description: 'Cannot retrieve backup task(s) status for 2 consecutive times.'
       discovery_rules:
-        -
-          uuid: b0c6f303c6714691b0860662b71fddca
+        - uuid: b0c6f303c6714691b0860662b71fddca
           name: 'Tasks discovery'
           type: SCRIPT
           key: syno.rest.HyperBackupTasks
@@ -179,19 +167,10 @@ zabbix_export:
             	else throw "2";
             
             	tasks=respBL.data.task_list;
-            	tasks.forEach(checkDetail);
+            	tasks.forEach(buildLLD);
             
-            	function checkDetail(t){
-            		urlDetail='https://'+p.host+':'+p.port+'/webapi/entry.cgi?api='+p.apiBackup+'&method=status&version=1&blOnline=false&additional=["last_bkp_time","next_bkp_time","last_bkp_result","is_modified","last_bkp_progress"]&task_id='+t.task_id+'&_sid='+Sid;
-            		reqD=new HttpRequest();
-            		respD=reqD.get(encodeURI(urlDetail),null);
-            		if(reqD.getStatus()==200){
-            			respD=JSON.parse(respD);
-            		}
-            		else throw "3";
-            		
-            		BkpObject = {'{#TASK_NAME}':t.name, '{#TASK_ID}':t.task_id, '{#TASK_STATUS}':respD.data.status,'{#TASK_LAST_RESULT}':respD.data.last_bkp_result, '{#TASK_LAST_DATE}':respD.data.last_bkp_end_time, '{#TASK_NEXT_DATE}':respD.data.next_bkp_time};
-            		
+            	function buildLLD(t){
+            		BkpObject = {'{#TASK_NAME}':t.name, '{#TASK_ID}':t.task_id};
             		bkpList.push(BkpObject);
             	}
             	function logout(){
@@ -199,7 +178,7 @@ zabbix_export:
             		reqL=new HttpRequest();
             		respL=reqL.get(encodeURI(urlLogout),null);
             		if(reqL.getStatus()!=200){
-            			throw "4";
+            			throw "3";
             		}
             	}
             	
@@ -211,17 +190,12 @@ zabbix_export:
             }
             return JSON.stringify(bkpList);
           description: |
-            Output belows custom object(s) macro:
+            Output macros:
             {#TASK_NAME}
             {#TASK_ID}
-            {#TASK_STATUS}
-            {#TASK_LAST_RESULT}
-            {#TASK_LAST_DATE}
-            {#TASK_NEXT_DATE}
           item_prototypes:
-            -
-              uuid: 8f4669c0603f408fa137f40073f2a8c9
-              name: 'Hyper Backup Task {#TASK_NAME} last result'
+            - uuid: 8f4669c0603f408fa137f40073f2a8c9
+              name: 'Hyper Backup task {#TASK_NAME} last result'
               type: DEPENDENT
               key: 'syno.rest.HyperBackupLastResult[{#TASK_ID}]'
               delay: '0'
@@ -229,189 +203,222 @@ zabbix_export:
               trends: '0'
               value_type: CHAR
               description: |
-                Possible values:
-                	done:		Normal status
-                	none:		Never run before
-                	backingup:	Ongoing backup
-                	resuming:	Ongoing backup??
-                	version_deleting
-                	preparing_version_delete
+                Task last run result.
+                
+                Known values:
+                 done => Normal status
+                 none => Never run before
+                 backingup => Ongoing backup
+                 cancel
+                 failed
+                 suspend
+                 partial
+                 cksum_failed
+                 dest_missing
+                 success
+                 failed_checking
+                 resuming
+                 version_delete_failed
+                 discard
+                 version_deleting
               preprocessing:
-                -
-                  type: NOT_MATCHES_REGEX
+                - type: NOT_MATCHES_REGEX
                   parameters:
                     - ^error$
                   error_handler: DISCARD_VALUE
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - '$.[?(@.Id == {#TASK_ID})]'
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - $..Last_Result.first()
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
-                -
-                  tag: Application
+                - tag: Application
                   value: 'Synology Backup'
               trigger_prototypes:
-                -
-                  uuid: 537698c09d604cc79bd1e4b92a1a13c9
-                  expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupLastResult[{#TASK_ID}])<>"done"'
-                  name: 'Hyper Backup Task {#TASK_NAME} last result: {#TASK_LAST_RESULT}'
-                  opdata: '{#TASK_LAST_RESULT}'
+                - uuid: 537698c09d604cc79bd1e4b92a1a13c9
+                  expression: 'find(/Synology Hyper Backup/syno.rest.HyperBackupLastResult[{#TASK_ID}],#1,"regexp","{$SYNO.REST.API.BACKUP.RESULT_OK}")=0'
+                  name: 'Hyper Backup task {#TASK_NAME} last result'
+                  opdata: '{ITEM.VALUE}'
+                  url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
                   priority: WARNING
-            -
-              uuid: 126acb5b9cc54be096310f236e8cba89
-              name: 'Hyper Backup Task {#TASK_NAME} last run'
+                  description: |
+                    Last run of the backup task "{#TASK_NAME}" encountered an issue.
+                    Check Hyper Backup status on Synology device.
+            - uuid: 126acb5b9cc54be096310f236e8cba89
+              name: 'Hyper Backup task {#TASK_NAME} last run'
               type: DEPENDENT
               key: 'syno.rest.HyperBackupLastRun[{#TASK_ID}]'
               delay: '0'
               history: 60d
               trends: '0'
               value_type: CHAR
-              description: 'Last time/date task was run'
+              description: 'Task last run date-time.'
               preprocessing:
-                -
-                  type: NOT_MATCHES_REGEX
+                - type: NOT_MATCHES_REGEX
                   parameters:
                     - ^error$
                   error_handler: DISCARD_VALUE
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - '$.[?(@.Id == {#TASK_ID})]'
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - $..Last_Date.first()
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
-                -
-                  tag: Application
+                - tag: Application
                   value: 'Synology Backup'
-            -
-              uuid: c433c672bdb349b18269cc1b8046cba8
-              name: 'Hyper Backup Task {#TASK_NAME} next run'
+            - uuid: c433c672bdb349b18269cc1b8046cba8
+              name: 'Hyper Backup task {#TASK_NAME} next run'
               type: DEPENDENT
               key: 'syno.rest.HyperBackupNextRun[{#TASK_ID}]'
               delay: '0'
               history: 60d
               trends: '0'
               value_type: CHAR
-              description: 'Next time/date task will run'
+              description: 'Task next scheduled date-time.'
               preprocessing:
-                -
-                  type: NOT_MATCHES_REGEX
+                - type: NOT_MATCHES_REGEX
                   parameters:
                     - ^error$
                   error_handler: DISCARD_VALUE
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - '$.[?(@.Id == {#TASK_ID})]'
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - $..Next_Date.first()
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
-                -
-                  tag: Application
+                - tag: Application
                   value: 'Synology Backup'
-            -
-              uuid: 3558b55036d44bb882681f510943d96e
-              name: 'Hyper Backup Task {#TASK_NAME} status'
+              trigger_prototypes:
+                - uuid: c4b543722573449195f31057af0259d1
+                  expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupNextRun[{#TASK_ID}])=""'
+                  name: 'Hyper Backup task {#TASK_NAME} is not scheduled'
+                  url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
+                  priority: INFO
+                  description: 'Hyper Backup task "{#TASK_NAME}" has no scheduled time.'
+            - uuid: 06e4fe0df21f4f9cae0c086664dd6ccb
+              name: 'Hyper Backup task {#TASK_NAME} state'
+              type: DEPENDENT
+              key: 'syno.rest.HyperBackupState[{#TASK_ID}]'
+              delay: '0'
+              history: 60d
+              trends: '0'
+              value_type: CHAR
+              description: |
+                Task state.
+                
+                Known values:
+                 exportable
+                 importable
+                 relinkable
+                 backupable
+                 unauth
+                 endofservice
+                 error_detect
+                 broken
+                 restore_only
+              preprocessing:
+                - type: NOT_MATCHES_REGEX
+                  parameters:
+                    - ^error$
+                  error_handler: DISCARD_VALUE
+                - type: JSONPATH
+                  parameters:
+                    - '$.[?(@.Id == {#TASK_ID})]'
+                - type: JSONPATH
+                  parameters:
+                    - $..State.first()
+              master_item:
+                key: syno.rest.HyperBackupScript
+              tags:
+                - tag: Application
+                  value: 'Synology Backup'
+              trigger_prototypes:
+                - uuid: 4d00730446054f18a14b992148ef854d
+                  expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupState[{#TASK_ID}])<>"backupable"'
+                  name: 'Hyper Backup task {#TASK_NAME} state'
+                  opdata: '{ITEM.VALUE}'
+                  url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
+                  priority: WARNING
+                  description: 'Backup task "{#TASK_NAME}" is in an unexpected state.'
+            - uuid: 3558b55036d44bb882681f510943d96e
+              name: 'Hyper Backup task {#TASK_NAME} current activity'
               type: DEPENDENT
               key: 'syno.rest.HyperBackupStatus[{#TASK_ID}]'
               delay: '0'
               history: 60d
               trends: '0'
               value_type: CHAR
-              description: |
-                Possible values:
-                	none:		Normal status
-                	detect:		Ongoing backup
-                	waiting:		Waiting for backup
-                	backup:		Ongoing backup
+              description: 'Task ongoing activity.'
               preprocessing:
-                -
-                  type: NOT_MATCHES_REGEX
+                - type: NOT_MATCHES_REGEX
                   parameters:
                     - ^error$
                   error_handler: DISCARD_VALUE
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - '$.[?(@.Id == {#TASK_ID})]'
-                -
-                  type: JSONPATH
+                - type: JSONPATH
                   parameters:
                     - $..Status.first()
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
-                -
-                  tag: Application
+                - tag: Application
                   value: 'Synology Backup'
               trigger_prototypes:
-                -
-                  uuid: a21cea8b1fef42b5b952102b732e85a1
+                - uuid: 743c551217bf44e7a7495362dde0a56b
                   expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupStatus[{#TASK_ID}])<>"none"'
-                  name: 'Hyper Backup Task {#TASK_NAME} unexpected status'
-                  opdata: '{#TASK_STATUS}'
-                  priority: WARNING
+                  name: 'Hyper Backup task {#TASK_NAME} current activity'
+                  opdata: '{ITEM.VALUE}'
+                  url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
+                  status: DISABLED
+                  priority: INFO
+                  manual_close: 'YES'
           timeout: 50s
           parameters:
-            -
-              name: apiAuth
-              value: '{$SYNO.REST.API.AUTH}'
-            -
-              name: apiBackup
-              value: '{$SYNO.REST.API.BACKUP}'
-            -
-              name: host
-              value: '{HOST.IP}'
-            -
-              name: passwd
-              value: '{$SYNO.REST.PASSWORD}'
-            -
-              name: port
-              value: '{$SYNO.REST.API.PORT}'
-            -
-              name: version
-              value: '{$SYNO.REST.API.VERSION}'
-            -
-              name: account
+            - name: account
               value: '{$SYNO.REST.USER}'
+            - name: apiAuth
+              value: '{$SYNO.REST.API.AUTH}'
+            - name: apiBackup
+              value: '{$SYNO.REST.API.BACKUP}'
+            - name: host
+              value: '{HOST.CONN}'
+            - name: passwd
+              value: '{$SYNO.REST.PASSWORD}'
+            - name: port
+              value: '{$SYNO.REST.API.PORT}'
+            - name: version
+              value: '{$SYNO.REST.API.VERSION}'
       macros:
-        -
-          macro: '{$SYNO.REST.API.AUTH}'
+        - macro: '{$SYNO.REST.API.AUTH}'
           value: SYNO.API.Auth
           description: 'rest endpoint'
-        -
-          macro: '{$SYNO.REST.API.BACKUP}'
+        - macro: '{$SYNO.REST.API.BACKUP}'
           value: SYNO.Backup.Task
           description: 'rest endpoint'
-        -
-          macro: '{$SYNO.REST.API.BACKUP.LLD_INT}'
+        - macro: '{$SYNO.REST.API.BACKUP.LLD_INT}'
           value: 15m
           description: 'LLD Interval'
-        -
-          macro: '{$SYNO.REST.API.PORT}'
+        - macro: '{$SYNO.REST.API.BACKUP.RESULT_OK}'
+          value: ^done|backingup$
+          description: 'Regex matching all backup result values that wont fire default trigger'
+        - macro: '{$SYNO.REST.API.PORT}'
           value: '5001'
           description: 'https port'
-        -
-          macro: '{$SYNO.REST.API.VERSION}'
+        - macro: '{$SYNO.REST.API.VERSION}'
           value: '6'
-        -
-          macro: '{$SYNO.REST.PASSWORD}'
+        - macro: '{$SYNO.REST.PASSWORD}'
           type: SECRET_TEXT
           description: 'DSM password'
-        -
-          macro: '{$SYNO.REST.USER}'
+        - macro: '{$SYNO.REST.USER}'
           description: 'DSM user'
