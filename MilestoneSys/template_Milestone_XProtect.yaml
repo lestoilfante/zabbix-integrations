@@ -516,7 +516,7 @@ zabbix_export:
                 - uuid: ad1650a0a9e04428b3f0400409e23da4
                   expression: 'last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.sa])<{$MILESTONE.ARCHIVE.WARN}'
                   name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} space available is low'
-                  opdata: 'Space available: {ITEM.VALUE}%'
+                  opdata: 'Space available: {ITEM.VALUE}'
                   priority: WARNING
             - uuid: 5451000010b44170b05e17d2b9c59f8d
               name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status'
@@ -2010,7 +2010,7 @@ zabbix_export:
                 - uuid: af29880da2ee4392a9f93bde36738caa
                   expression: 'last(/Milestone XProtect/mxp.rec.storage[{#REC_ID}.{#REC_STORAGE_ID}.sa])<{$MILESTONE.STORAGE.WARN}'
                   name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} space available is low'
-                  opdata: 'Space available: {ITEM.VALUE}%'
+                  opdata: 'Space available: {ITEM.VALUE}'
                   priority: WARNING
             - uuid: 23efe0b75aeb40aca579125c113066a4
               name: 'Milestone: [REC] {#REC_DNAME} [STR] {#REC_STORAGE_DNAME} status'
