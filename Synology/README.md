@@ -25,7 +25,8 @@ GNU General Public License version 3 (GPLv3)
 
 ## Configuration
 
-Import template `template_synology_hyperbackup.yaml`, assign to Synology Host, set the macros `{$SYNO.REST.USER}` `{$SYNO.REST.PASSWORD}`, this user has to be in Synology `administrators` group and allowed access to DSM Application.
+Import template `template_synology_hyperbackup.yaml`, assign to Synology Host and set the macros `{$SYNO.REST.USER}` `{$SYNO.REST.PASSWORD}`.  
+On Synology device use `Delegate` menu to add `{$SYNO.REST.USER}` to `Hyper Backup management` role. If `Delegate` is not available, `{$SYNO.REST.USER}` must be in Synology `administrators` group.
 
 ### Macros used
 
@@ -50,14 +51,17 @@ There are no template links in this template.
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Hyper Backup Task {#TASK_NAME} last result|Last task result|`Dependent item`|syno.rest.HyperBackupLastResult[{#TASK_ID}]|
-|Hyper Backup Task {#TASK_NAME} last run|Last time/date task was run|`Dependent item`|syno.rest.HyperBackupLastRun[{#TASK_ID}]|
-|Hyper Backup Task {#TASK_NAME} next run|Next time/date task will run|`Dependent item`|syno.rest.HyperBackupNextRun[{#TASK_ID}]|
-|Hyper Backup Task {#TASK_NAME} status|Current backup task activity|`Dependent item`|syno.rest.HyperBackupStatus[{#TASK_ID}]|
+|Hyper Backup task {#TASK_NAME} current activity|Task ongoing activity|`Dependent item`|syno.rest.HyperBackupStatus[{#TASK_ID}]|
+|Hyper Backup task {#TASK_NAME} last result|Task last run result|`Dependent item`|syno.rest.HyperBackupLastResult[{#TASK_ID}]|
+|Hyper Backup task {#TASK_NAME} last run|Task last run date-time|`Dependent item`|syno.rest.HyperBackupLastRun[{#TASK_ID}]|
+|Hyper Backup task {#TASK_NAME} next run|Task next scheduled date-time|`Dependent item`|syno.rest.HyperBackupNextRun[{#TASK_ID}]|
+|Hyper Backup task {#TASK_NAME} state|Task state|`Dependent item`|syno.rest.HyperBackupState[{#TASK_ID}]|
 
 ## Triggers
 
 |Name|Description|Expression|Priority|
 |----|-----------|----------|--------|
-|Hyper Backup Task {#TASK_NAME} last result: {#TASK_LAST_RESULT}|-|-|`Warning`|
-|Hyper Backup Task {#TASK_NAME} unexpected status|-|-|`Warning`|
+|Hyper Backup task {#TASK_NAME} current activity|-|-|`Information`|
+|Hyper Backup task {#TASK_NAME} is not scheduled|Hyper Backup task "{#TASK_NAME}" has no scheduled time|-|`Information`|
+|Hyper Backup task {#TASK_NAME} last result|Last run of the backup task "{#TASK_NAME}" encountered an issue|-|`Warning`|
+|Hyper Backup task {#TASK_NAME} state|Backup task "{#TASK_NAME}" is in an unexpected state|-|`Warning`|
