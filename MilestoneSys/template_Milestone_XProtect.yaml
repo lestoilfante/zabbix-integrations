@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-06-24T09:00:00Z'
+  date: '2024-08-29T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '0.9a',
+                    version: '0.9b',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -1891,7 +1891,7 @@ zabbix_export:
                     return MXP.getRecorderStatus();
                 }
                 catch(e) {
-                
+                    return "Recorder connection failed";
                 }
               description: |
                 Recording server to Management server connection state.
