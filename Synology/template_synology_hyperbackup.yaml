@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-08-16T08:51:02Z'
+  date: '2024-11-11T08:51:02Z'
   groups:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
@@ -380,7 +380,6 @@ zabbix_export:
                   name: 'Hyper Backup task {#TASK_NAME} current activity'
                   opdata: '{ITEM.VALUE}'
                   url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
-                  status: DISABLED
                   priority: INFO
                   manual_close: 'YES'
           timeout: 50s
@@ -410,7 +409,7 @@ zabbix_export:
           value: 15m
           description: 'LLD Interval'
         - macro: '{$SYNO.REST.API.BACKUP.RESULT_OK}'
-          value: ^done|backingup$
+          value: ^done|backingup|version_deleting$
           description: 'Regex matching all backup result values that wont fire default trigger'
         - macro: '{$SYNO.REST.API.PORT}'
           value: '5001'
