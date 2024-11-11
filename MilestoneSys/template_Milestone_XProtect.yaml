@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-08-29T09:00:00Z'
+  date: '2024-11-11T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '0.9b',
+                    version: '0.9c',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -840,7 +840,7 @@ zabbix_export:
           key: mxp.discovery.hotfixes
           delay: '0'
           lifetime: 7d
-          description: 'Retrieves data about available hotfixes from Milestone website'
+          description: 'Retrieves data about available hotfixes from Milestone Azure Blob Storage'
           item_prototypes:
             - uuid: a3398fbee3484911814de733bba819e2
               name: 'Milestone: [UPD] {#HOTFIX_NAME}'
@@ -852,38 +852,22 @@ zabbix_export:
               value_type: TEXT
               params: |
                 try {
-                  var hfxUrl = '{#HOTFIX_BASEURL}{#HOTFIX_URL}';
+                  var hfxUrl = '{#HOTFIX_URL}';
                   var request = new HttpRequest();
                   var response = new HttpRequest();
                   response = request.get(hfxUrl);
                   if (request.getStatus() !== 200 || response === null) {
                     throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + hfxUrl;
                   }
-                  var matches = response.match(/href=".*?ReleaseNotes\.txt"/gm);
-                  if (!matches) throw 'No release notes found';
-                  var releaseFileUrls = [];
-                  matches.forEach(function(m) {
-                    var _m = m.match(/href="(.*?ReleaseNotes\.txt)"/);
-                    if(_m && _m.length == 2) {
-                        releaseFileUrls.push('{#HOTFIX_BASEURL}' + _m[1]);
-                    }
-                  });
-                  if (releaseFileUrls.length == 0) throw 'No release notes found';
-                  var output = '';
-                  releaseFileUrls.forEach(function(fileUrl) {
-                    response = request.get(fileUrl);
-                    if (request.getStatus() !== 200 || response === null) {
-                      throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + fileUrl;
-                    }
-                    var lastMod = JSON.stringify(request.getHeaders(false)).match(/"last-modified":".{5}(.*?)",/i);
-                    if (lastMod && lastMod.length == 2) output += '[' + lastMod[1] + ']\n';
-                    var fixes = response.match(/^.*- \d{4,10}.*$/gm);
-                    if(!fixes || fixes.length == 0) return;
-                    output += fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
-                    output += ('\n');
-                    output += fixes.reverse().join('\n');
-                    output += ('\n\n');
-                  });
+                  var output = '[{#HOTFIX_DATE}]\n';
+                  output += hfxUrl.substring(hfxUrl.lastIndexOf('/') + 1) + '\n';
+                  var fixes = response.match(/^.*- .*? - \d{2}\/\d{2}\/\d{4} - .*$/gm);
+                  if(fixes && fixes.length > 0) {
+                     output += fixes.reverse().join('\n');
+                  }
+                  else {
+                    output += ('No info available\n');
+                  }
                   return output;
                 }
                 catch(e) {
@@ -891,7 +875,7 @@ zabbix_export:
                 }
               description: |
                 Latest available hotfixes
-                {#HOTFIX_BASEURL}{#HOTFIX_URL}
+                {#HOTFIX_INFOURL}
               preprocessing:
                 - type: NOT_MATCHES_REGEX
                   parameters:
@@ -905,10 +889,13 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 887cf0909b0d4f9d858775fbd1e2c402
                   expression: 'last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#1)<>last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#2)'
+                  recovery_mode: NONE
                   name: 'Milestone: New hotfix available for {#HOTFIX_NAME}'
-                  url: '{#HOTFIX_BASEURL}{#HOTFIX_URL}'
+                  url: '{#HOTFIX_INFOURL}'
                   priority: INFO
                   description: 'A new hotfix has been released'
+                  type: MULTIPLE
+                  manual_close: 'YES'
           master_item:
             key: mxp.info.pv
           preprocessing:
@@ -918,35 +905,64 @@ zabbix_export:
                   var lld = [];
                   try {
                     var mxpVer = value.split('.').slice(0, 2).join('.');
-                    var mxpUrl = 'https://download.milestonesys.com';
-                    var hfxUrl = (mxpUrl + '/MTSKB/hotfixes/' + mxpVer);
+                    var mxpUrl = 'https://milestonedownload.blob.core.windows.net';
+                    var hfxUrl = (mxpUrl + '/files?restype=container&comp=list&prefix=Hotfixes/' + mxpVer);
+                    var hfxInfoUrl = ('https://download.milestonesys.com/MTSKB/hotfixes/' + mxpVer + '/');
                     var request = new HttpRequest();
                     var response = new HttpRequest();
                     response = request.get(hfxUrl);
                     if (request.getStatus() !== 200 || response === null) {
                       throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + hfxUrl;
                     }
-                    var regex = new RegExp('href=".*' + mxpVer.replace('.','\.') + '.*?">.*?<', 'gm');
-                    var matches = response.match(regex);
-                    if (!matches) throw 'No hotfixes found';
-                    regex = new RegExp('href="(.*' + mxpVer.replace('.','\.') + '.*?)">(.*?)<', '');
-                    matches.forEach(function(m) {
-                      var _m = m.match(regex);
-                      if(_m.length == 3) {
-                          var obj = {
-                              "{#HOTFIX_BASEURL}": mxpUrl,
-                              "{#HOTFIX_URL}": _m[1],
-                              "{#HOTFIX_NAME}": _m[2].substring(0, 30),
-                              "{#HOTFIX_KEY}": _m[2].substring(0, 30).replace(' ','').trim()
-                          };
-                          lld.push(obj);
+                  
+                    var r = JSON.parse(XML.toJson(response));
+                    var latestHotfixes = {};
+                    r.EnumerationResults.Blobs.Blob.forEach(function(blob) {
+                      var item = blob.Name.match(new RegExp('^Hotfixes\\/' + mxpVer + '\\/(.*)\/.*?(ReleaseNotes\\.txt)$'));
+                      if (!item || item.length != 3) return;
+                      var component = item[1];
+                      var hotfix = { 
+                          Component: component, 
+                          Url: blob.Url, 
+                          Date: parseRFC1123(blob.Properties['Last-Modified'])
+                      };
+                      if (!latestHotfixes[component] || latestHotfixes[component].Date < hotfix.Date) {
+                        latestHotfixes[component] = hotfix;
                       }
                     });
+                  
+                    for (var item in latestHotfixes) {
+                      var hotfix = latestHotfixes[item];
+                      var obj = {
+                        "{#HOTFIX_INFOURL}": (hfxInfoUrl + hotfix.Component),
+                        "{#HOTFIX_URL}": hotfix.Url,
+                        "{#HOTFIX_NAME}": hotfix.Component.substring(0, 30),
+                        "{#HOTFIX_KEY}": hotfix.Component.substring(0, 30).replace(' ','').trim(),
+                        "{#HOTFIX_DATE}": hotfix.Date.toString().substring(0,10)
+                      };
+                      lld.push(obj)
+                    }
                   }
                   catch(e) {
                   
                   }
+                  
                   return JSON.stringify(lld);
+                  
+                  function parseRFC1123(dateString) {
+                      var parts = dateString.split(' ');
+                      var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                      
+                      var day = parseInt(parts[1], 10);
+                      var month = months.indexOf(parts[2]);
+                      var year = parseInt(parts[3], 10);
+                      var time = parts[4].split(':');
+                      var hours = parseInt(time[0], 10);
+                      var minutes = parseInt(time[1], 10);
+                      var seconds = parseInt(time[2], 10);
+                  
+                      return new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+                  }
         - uuid: f6216955d0044fcca36999f783429778
           name: 'Management Servers'
           type: DEPENDENT
