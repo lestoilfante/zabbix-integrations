@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-07-26T10:52:06Z'
+  date: '2024-11-11T10:52:06Z'
   groups:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
@@ -276,70 +276,82 @@ zabbix_export:
               parameters:
                 - |
                   try {
-                  	var v = value.replace(/-W$/, "");
-                  	var devLink = getDeviceLink("{$WG_DOWNLOAD_HOME}", v);
-                  	if(devLink == null)
-                  		throw "Failed to get device resource link";
-                  	var devLatestOS = getDeviceLatestOS("{$WG_DOWNLOAD_URL}" + devLink);
-                  	if(devLatestOS == null)
-                  		throw "Failed to get device latest OS";
-                  	var devLatestOSbuild = getDeviceLatestOSbuild(devLatestOS.releaseNoteUrl);
-                  	var data = {
-                  		os: devLatestOS.os,
-                  		rn: devLatestOS.releaseNoteUrl,
-                  		osFull: devLatestOSbuild
-                  	}
-                  	return data.osFull;
+                    var v = value.replace(/-W$/, "");
+                    var devLink = getDeviceLink("{$WG_DOWNLOAD_HOME}", v);
+                    if(devLink == null)
+                      throw "Failed to get device resource link";
+                    var devLatestOS = getDeviceLatestOS("{$WG_DOWNLOAD_URL}" + devLink);
+                    if(devLatestOS == null)
+                      throw "Failed to get device latest OS";
+                    var devLatestOSbuild = getDeviceLatestOSbuild(devLatestOS.releaseNoteUrl);
+                    var data = {
+                      os: devLatestOS.os,
+                      rn: devLatestOS.releaseNoteUrl,
+                      osFull: devLatestOSbuild
+                    }
+                    return data.osFull;
                   }
                   catch(e) {
-                  	return "ERROR: " + e;
+                    return "ERROR: " + e;
                   }
                   
                   function getDeviceLink(url, model){
-                  	var req = new HttpRequest();
-                  	var resp = req.get(url,null);
-                  	if(req.getStatus()!=200)
-                  		return null;
-                  	else{
-                  		var regex = /var devices = (.*?);\n/;
-                  		var match = regex.exec(resp);
-                  		var devicesData = JSON.parse(match[1]);
-                  		var matchingLink = null;
-                  		for (var i = 0; i < devicesData.length; i++) {
-                  			for (var ii = 0; ii < devicesData[i].ProductFamilies.length; ii++) {
-                  				var obj = devicesData[i].ProductFamilies[ii];
-                  				if (obj.Name && obj.Name.indexOf(model) !== -1) {
-                  					matchingLink = obj.Id;
-                  					break;
-                  				}
-                  			}
-                  		}
-                  		return matchingLink;
-                  	}
+                    var req = new HttpRequest();
+                    var resp = req.get(url,null);
+                    if(req.getStatus()!=200)
+                      return null;
+                    else{
+                      var regex = /var devices = (.*?);\n/;
+                      var match = regex.exec(resp);
+                      var devicesData = JSON.parse(match[1]);
+                      var matchingLink = null;
+                      for (var i = 0; i < devicesData.length; i++) {
+                        for (var ii = 0; ii < devicesData[i].ProductFamilies.length; ii++) {
+                          var obj = devicesData[i].ProductFamilies[ii];
+                          if (obj.Name && obj.Name.indexOf(model) !== -1) {
+                            matchingLink = obj.Id;
+                            break;
+                          }
+                        }
+                      }
+                      return matchingLink;
+                    }
                   }
                   function getDeviceLatestOS(url){
-                  	var req = new HttpRequest();
-                  	var resp = req.get(url,null);
-                  	if(req.getStatus()!=200)
-                  		return null;
-                  	var regexOS = /<h5 .*id="0releaseHeader".*>Fireware v(.*)<\/h5>/;
-                  	var matchOS = regexOS.exec(resp);
-                  	var regexRN = /<a .*href=['"]{1}(.*?)['"]{1}.*>Release Notes.*<\/a>/;
-                  	var matchRN = regexRN.exec(resp);
-                  	return {
-                  		os: matchOS[1],
-                  		releaseNoteUrl: matchRN[1]
-                  	}
+                    var req = new HttpRequest();
+                    var resp = req.get(url,null);
+                    if(req.getStatus()!=200)
+                      return null;
+                    var regexOS = /<h5 .*id="0releaseHeader".*>Fireware v(.*)<\/h5>/;
+                    var matchOS = regexOS.exec(resp);
+                    var regexRN = /<a .*href=['"]{1}(.*?)['"]{1}.*>Release Notes.*<\/a>/;
+                    var matchRN = regexRN.exec(resp);
+                    return {
+                      os: matchOS[1],
+                      releaseNoteUrl: matchRN[1]
+                    }
                   }
                   function getDeviceLatestOSbuild(url){
-                  	var _url = url.replace(/\/[^\/]*$/, "/Content/Fireware/en-US/EN_Release_Notes_Fireware.html")
-                  	var req = new HttpRequest();
-                  	var resp = req.get(_url,null);
-                  	if(req.getStatus()!=200)
-                  		return null;
-                  	var regex = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{4,}).*?:.*?([\d]{1,}).*?<\/td>/;
-                  	var match = regex.exec(resp);
-                  	return match[1] + ".B" + match[2];
+                    var _url = url.replace(/\/[^\/]*$/, "/Content/Fireware/en-US/EN_Release_Notes_Fireware.html");
+                    var req = new HttpRequest();
+                    var resp = req.get(_url,null);
+                    if(req.getStatus()!=200)
+                      return null;
+                    var regex_os = /<title>Fireware v([\d\.]{1,}).*?Release Notes <\/title>/;
+                    var match_os = regex_os.exec(resp);
+                    var os = match_os[1];
+                    var build;
+                    var regex_buildOnly = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{3,})<\/td>/;
+                    var regex_full = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{4,}).*?:.*?([\d]{1,}).*?<\/td>/;
+                    var match_build = regex_buildOnly.exec(resp);
+                    if (match_build) {
+                      build = match_build[1];
+                    }
+                    else {
+                      match_build = regex_full.exec(resp);
+                      build = match_build[2];
+                    }
+                    return os + ".B" + build;
                   }
                   
             - type: DISCARD_UNCHANGED_HEARTBEAT
@@ -387,7 +399,7 @@ zabbix_export:
             - uuid: d5669fc0f1c14d3da6456bee79dca905
               expression: 'last(/Watchguard Firewall/wgSystemCpuUtil1,#5)>80'
               name: 'CPU Utilization High'
-              opdata: '{ITEM.LASTVALUE}%'
+              opdata: '{ITEM.VALUE}'
               priority: WARNING
               dependencies:
                 - name: 'No SNMP data collection'
