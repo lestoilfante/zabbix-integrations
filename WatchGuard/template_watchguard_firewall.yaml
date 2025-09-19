@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-11-11T10:52:06Z'
+  date: '2025-19-19T10:52:06Z'
   groups:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
@@ -24,7 +24,7 @@ zabbix_export:
         *Network Interfaces
         
         ## Author
-        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+        Copyright (C) 2023-2025 lestoilfante (https://github.com/lestoilfante)
         
         ## License
         GNU General Public License version 3 (GPLv3)
@@ -341,7 +341,7 @@ zabbix_export:
                     var match_os = regex_os.exec(resp);
                     var os = match_os[1];
                     var build;
-                    var regex_buildOnly = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{3,})<\/td>/;
+                    var regex_buildOnly = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{3,})[<\/td>|<br]/;
                     var regex_full = />Fireware OS Build<\/td>[\s]*?<td.*?>([\d.]{4,}).*?:.*?([\d]{1,}).*?<\/td>/;
                     var match_build = regex_buildOnly.exec(resp);
                     if (match_build) {
