@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-11-11T09:00:00Z'
+  date: '2026-02-08T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -20,7 +20,7 @@ zabbix_export:
           Allow Web Client login
         
         ## Author
-        Copyright (C) 2024 lestoilfante (https://github.com/lestoilfante)
+        Copyright (C) 2024-2026 lestoilfante (https://github.com/lestoilfante)
                 
         ## License
         GNU General Public License version 3 (GPLv3)
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '0.9c',
+                    version: '1.0',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -759,26 +759,26 @@ zabbix_export:
                       var camStatus = status[0];
                       var enabled = camStatus.Enabled === "true";
                       if (enabled) {
-                      	var error = camStatus.Error === "true";
-                      	var notLicensed = camStatus.ErrorNotLicensed === "true";
-                      	var noConnection = camStatus.ErrorNoConnection === "true";
-                      	var overflow = camStatus.ErrorOverflow === "true";
-                      	var gop = camStatus.ErrorWritingGop=== "true";
-                      	if (noConnection) {
-                      		return 1;
-                      	}
-                      	if (notLicensed ) {
-                      		return 2;
-                      	}
-                      	if (error) {
-                      		return 3;
-                      	}
-                      	if (overflow) {
-                      		return 4;
-                      	}
-                      	if (gop) {
-                      		return 5;
-                      	}
+                          var error = camStatus.Error === "true";
+                          var notLicensed = camStatus.ErrorNotLicensed === "true";
+                          var noConnection = camStatus.ErrorNoConnection === "true";
+                          var overflow = camStatus.ErrorOverflow === "true";
+                          var gop = camStatus.ErrorWritingGop=== "true";
+                          if (noConnection) {
+                              return 1;
+                          }
+                          if (notLicensed ) {
+                              return 2;
+                          }
+                          if (error) {
+                              return 3;
+                          }
+                          if (overflow) {
+                              return 4;
+                          }
+                          if (gop) {
+                              return 5;
+                          }
                       }
                       
                       return 0;
@@ -893,7 +893,9 @@ zabbix_export:
                   name: 'Milestone: New hotfix available for {#HOTFIX_NAME}'
                   url: '{#HOTFIX_INFOURL}'
                   priority: INFO
-                  description: 'A new hotfix has been released'
+                  description: |
+                    A new hotfix has been released.
+                    Download URL: {#HOTFIX_DOWNLOADURL}
                   type: MULTIPLE
                   manual_close: 'YES'
           master_item:
@@ -917,11 +919,14 @@ zabbix_export:
                   
                     var r = JSON.parse(XML.toJson(response));
                     var latestHotfixes = {};
+                    var blobMap = [];
                     r.EnumerationResults.Blobs.Blob.forEach(function(blob) {
+                      blobMap[blob.Name] = blob.Url;
                       var item = blob.Name.match(new RegExp('^Hotfixes\\/' + mxpVer + '\\/(.*)\/.*?(ReleaseNotes\\.txt)$'));
                       if (!item || item.length != 3) return;
                       var component = item[1];
                       var hotfix = { 
+                          Name: blob.Name,
                           Component: component, 
                           Url: blob.Url, 
                           Date: parseRFC1123(blob.Properties['Last-Modified'])
@@ -938,7 +943,8 @@ zabbix_export:
                         "{#HOTFIX_URL}": hotfix.Url,
                         "{#HOTFIX_NAME}": hotfix.Component.substring(0, 30),
                         "{#HOTFIX_KEY}": hotfix.Component.substring(0, 30).replace(' ','').trim(),
-                        "{#HOTFIX_DATE}": hotfix.Date.toString().substring(0,10)
+                        "{#HOTFIX_DATE}": hotfix.Date.toString().substring(0,10),
+                        "{#HOTFIX_DOWNLOADURL}": blobMap[hotfix.Name.replace('ReleaseNotes.txt','exe')] || blobMap[hotfix.Name.replace('ReleaseNotes.txt','msi')] || "NOT_FOUND"
                       };
                       lld.push(obj)
                     }
@@ -963,6 +969,210 @@ zabbix_export:
                   
                       return new Date(Date.UTC(year, month, day, hours, minutes, seconds));
                   }
+        - uuid: 17f79e8a9bfb496086ea3219220dba81
+          name: Lifecycle
+          type: DEPENDENT
+          key: mxp.discovery.lc
+          delay: '0'
+          lifetime: 7d
+          description: 'Retrieves lifecycle data for the current XProtect version from the Milestone public website.'
+          item_prototypes:
+            - uuid: c3574d1a8791416385a91b877535ab11
+              name: 'Milestone: XProtect Product lifecycle Discontinued date'
+              type: SCRIPT
+              key: 'mxp.lc[{#LC_KEY}.discontinued]'
+              delay: 1d
+              history: 30d
+              trends: '0'
+              units: unixtime
+              params: 'return ''{#LC_DATE_DISCONTINUED}'''
+              description: |
+                The date on which this XProtect version entered or will enter the Discontinued stage.
+                No more operation-critical hotfixes after this date.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+              trigger_prototypes:
+                - uuid: 8d6a0290a51a4c80962c503347b02e39
+                  expression: '(last(/Milestone XProtect/mxp.lc[{#LC_KEY}.discontinued]) - now()) / 86400 < {$MILESTONE.LC.DISCONTINUED.WARN}'
+                  name: 'Milestone: XProtect product release nearing Discontinued date'
+                  url: '{#LC_URL}'
+                  priority: WARNING
+                  description: |
+                    The current XProtect version lifecycle will enter the Discontinued stage in {$MILESTONE.LC.DISCONTINUED.WARN} days.
+                    No more operation-critical hotfixes after this date.
+                  dependencies:
+                    - name: 'Milestone: XProtect Product lifecycle stage not available'
+                      expression: 'count(/Milestone XProtect/mxp.lc[{#LC_KEY}.stage],#3,"eq","NA")=3'
+            - uuid: c7909f8dfbce4161ae908d4814aba1bf
+              name: 'Milestone: XProtect Product lifecycle General Availability date'
+              type: SCRIPT
+              key: 'mxp.lc[{#LC_KEY}.ga]'
+              delay: 1d
+              history: 30d
+              trends: '0'
+              units: unixtime
+              params: 'return ''{#LC_DATE_GENERALAVAILABILITY}'''
+              description: 'The date on which this XProtect version has been released'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+            - uuid: 8139d0222b794e1b8cca68c85400ef2a
+              name: 'Milestone: XProtect Product lifecycle Limited Availability date'
+              type: SCRIPT
+              key: 'mxp.lc[{#LC_KEY}.la]'
+              delay: 1d
+              history: 30d
+              trends: '0'
+              units: unixtime
+              params: 'return ''{#LC_DATE_LIMITEDAVAILABILITY}'''
+              description: 'The date on which this XProtect version entered or will enter Limited Availability'
+              preprocessing:
+                - type: NOT_MATCHES_REGEX
+                  parameters:
+                    - ^0$
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+            - uuid: 79c6b1af74514dfb820d0debf29e8680
+              name: 'Milestone: XProtect Product lifecycle stage'
+              type: SCRIPT
+              key: 'mxp.lc[{#LC_KEY}.stage]'
+              delay: 1d
+              trends: '0'
+              value_type: CHAR
+              params: 'return ''{#LC_STAGE}'''
+              description: |
+                Product lifecycle stage.
+                Milestone’s Video Management Software products change status from General Availability to Limited Availability three months after a similar or substituting product has been released. In special cases where a newer version has not been released, Limited Availability will start one year from the General Availability date. Milestone guarantees a minimal availability period of four years for all its VMS products, in which the product becomes Discontinued after three years from its General Availability date and Terminated after four years. Milestone reserves the right to prolong the lifespan of its products at its sole discretion.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+              trigger_prototypes:
+                - uuid: 6005d68d240e4bbaa3add5db2ee20a49
+                  expression: 'count(/Milestone XProtect/mxp.lc[{#LC_KEY}.stage],#3,"eq","NA")=3'
+                  name: 'Milestone: XProtect Product lifecycle stage not available'
+                  url: '{#LC_URL}'
+                  priority: AVERAGE
+                  description: 'The current XProtect version lifecycle stage cannot be retrieved. It might be a Terminated version.'
+            - uuid: 51f7890c23804c43934d14853ee57833
+              name: 'Milestone: XProtect Product lifecycle Terminated date'
+              type: SCRIPT
+              key: 'mxp.lc[{#LC_KEY}.terminated]'
+              delay: 1d
+              history: 30d
+              trends: '0'
+              units: unixtime
+              params: 'return ''{#LC_DATE_TERMINATED}'''
+              description: 'The date on which this XProtect version entered or will enter the Terminated stage'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1w
+              trigger_prototypes:
+                - uuid: 945828ca65ea48b5884cb0775a940163
+                  expression: '(last(/Milestone XProtect/mxp.lc[{#LC_KEY}.terminated]) - now()) / 86400 < {$MILESTONE.LC.TERMINATION.WARN}'
+                  name: 'Milestone: XProtect product release nearing Termination date'
+                  url: '{#LC_URL}'
+                  priority: HIGH
+                  description: 'The current XProtect version lifecycle will enter the Terminated stage in {$MILESTONE.LC.TERMINATION.WARN} days'
+                  dependencies:
+                    - name: 'Milestone: XProtect Product lifecycle stage not available'
+                      expression: 'count(/Milestone XProtect/mxp.lc[{#LC_KEY}.stage],#3,"eq","NA")=3'
+          master_item:
+            key: mxp.info
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Product.Name
+              error_handler: DISCARD_VALUE
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lld = [];
+                  try {
+                    var mxpVerR = value.match(/\b\d{4}\sR\d\b/);
+                    if (!mxpVerR) {
+                      throw 'Invalid XProtect version detected'
+                    }
+                    var mxpVer = mxpVerR[0];
+                    var mxpUrl = 'https://www.milestonesys.com/support/software/product-lifecycle/xprotect-management-software/';
+                    var request = new HttpRequest();
+                    var response = new HttpRequest();
+                    response = request.get(mxpUrl);
+                    if (request.getStatus() !== 200 || response === null) {
+                      throw 'HTTP request failed with status code ' + request.getStatus() + ': ' + mxpUrl;
+                    }
+                  
+                    var re = new RegExp(
+                      '<th[^>]*>' + mxpVer + '<\\/th>' +
+                      '[\\s\\S]*?<td[^>]*>(.*?)<\\/td>' +
+                      '[\\s\\S]*?<td[^>]*>(.*?)<\\/td>' +
+                      '[\\s\\S]*?<td[^>]*>(.*?)<\\/td>' +
+                      '[\\s\\S]*?<td[^>]*>(.*?)<\\/td>' +
+                      '[\\s\\S]*?<td[^>]*>(.*?)<\\/td>' +
+                      '[\\s\\S]*?<\\/tr>',
+                      'm'
+                    );
+                    var r = response.match(re);
+                    if (!r || r.length !== 6) {
+                      r = ['NA', 'NA', 0, 0, 0, 0];
+                    }
+                  
+                    var obj = {
+                      "{#LC_URL}": mxpUrl,
+                      "{#LC_KEY}": mxpVer.replace(' ',''),
+                      "{#LC_STAGE}": r[1].replace('<span>','').replace('</span>',''),
+                      "{#LC_DATE_GENERALAVAILABILITY}": (r[2] === 0) ? r[2] : parseEnglishDateToUnix(r[2].replace('<span>','').replace('</span>','').trim()),
+                      "{#LC_DATE_LIMITEDAVAILABILITY}": (r[3] === 0) ? r[3] : parseEnglishDateToUnix(r[3].replace('<span>','').replace('</span>','').trim()),
+                      "{#LC_DATE_DISCONTINUED}": (r[4] === 0) ? r[4] : parseEnglishDateToUnix(r[4].replace('<span>','').replace('</span>','').trim()),
+                      "{#LC_DATE_TERMINATED}": (r[5] === 0) ? r[5] : parseEnglishDateToUnix(r[5].replace('<span>','').replace('</span>','').trim())
+                    };
+                    lld.push(obj);
+                  }
+                  catch(e) {
+                  
+                  }
+                  
+                  return JSON.stringify(lld);
+                  
+                  function parseEnglishDateToUnix(dateString) {
+                    var months = {
+                      jan: 0,
+                      feb: 1,
+                      mar: 2,
+                      apr: 3,
+                      may: 4,
+                      jun: 5,
+                      jul: 6,
+                      aug: 7,
+                      sep: 8,
+                      oct: 9,
+                      nov: 10,
+                      dec: 11
+                    };
+                  
+                    var parts = dateString.replace(",", "").split(" ");
+                  
+                    var monthKey = parts[0].substring(0, 3).toLowerCase();
+                    var month = months[monthKey];
+                    var day = parseInt(parts[1], 10);
+                    var year = parseInt(parts[2], 10);
+                  
+                    if (month === undefined || isNaN(day) || isNaN(year)) {
+                      return 0;
+                    }
+                  
+                    var date = new Date(year, month, day);
+                    return Math.floor(date.getTime() / 1000);
+                  }
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 24h
         - uuid: f6216955d0044fcca36999f783429778
           name: 'Management Servers'
           type: DEPENDENT
@@ -2199,14 +2409,14 @@ zabbix_export:
             
             
             Service types:
-              Log server	3d6f1153-92ad-43f1-b467-9482ffd291b2
-              Legacy log server	002b1b2f-0817-4592-8c62-2fe5107c160c
-              Event Server service	08ab8f23-9aef-4298-9caa-f39259fe7cda
+              Log server				3d6f1153-92ad-43f1-b467-9482ffd291b2
+              Legacy log server			002b1b2f-0817-4592-8c62-2fe5107c160c
+              Event Server service		08ab8f23-9aef-4298-9caa-f39259fe7cda
               Incident Manager service	3ce6b5e2-d861-4c0b-9085-00b938b2f45a
-              Report Server	a9f27a6a-9488-44e3-ac0b-0cb1c86ccd2a
-              Management Server	a10cd823-bb4e-4d31-a162-dd236fc78fa6
-              Api Gateway	e46b7bf9-03ce-44eb-bbdc-8ba16d0aaa80
-              Mobile Server	7510bbae-dba5-4c2e-b037-74a0222484c6
+              Report Server				a9f27a6a-9488-44e3-ac0b-0cb1c86ccd2a
+              Management Server			a10cd823-bb4e-4d31-a162-dd236fc78fa6
+              Api Gateway				e46b7bf9-03ce-44eb-bbdc-8ba16d0aaa80
+              Mobile Server				7510bbae-dba5-4c2e-b037-74a0222484c6
           item_prototypes:
             - uuid: 70bc57df067c4c91acff393be41ccf27
               name: 'Milestone: [SVC] {#SVC_NAME}'
@@ -2306,6 +2516,12 @@ zabbix_export:
         - macro: '{$MILESTONE.ID}'
           value: ZABBIX_00
           description: 'Identifier uniquely identifying Zabbix calling instance. Typically, each ID should refer to a specific machine running this template.'
+        - macro: '{$MILESTONE.LC.DISCONTINUED.WARN}'
+          value: '90'
+          description: 'Number of days until the XProtect release reaches its Discontinued date'
+        - macro: '{$MILESTONE.LC.TERMINATION.WARN}'
+          value: '90'
+          description: 'Number of days until the XProtect release reaches its Termination date'
         - macro: '{$MILESTONE.LLD_FREQ}'
           value: 50m
           description: 'Low-level discovery frequency, keep lower than Milestone token duration which defaults to 60m'

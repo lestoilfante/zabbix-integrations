@@ -35,6 +35,6 @@ Template for monitoring Watchuard Firebox with Fireware v12.X including FireClus
 
 # License & Copyright
 
-[Copyright 2024 lestoilfante](https://github.com/lestoilfante)
+[Copyright 2024-2026 lestoilfante](https://github.com/lestoilfante)
 
 GNU General Public License version 3 (GPLv3) 

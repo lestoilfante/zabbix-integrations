@@ -31,7 +31,7 @@ If Zabbix Agent 2 is not going to be installed on Milestone Management Server us
 
 ## Author
 
-Copyright (C) 2024 [lestoilfante](https://github.com/lestoilfante)
+Copyright (C) 2024-2026 [lestoilfante](https://github.com/lestoilfante)
 
 ## License
 
@@ -50,6 +50,8 @@ GNU General Public License version 3 (GPLv3)
 |{$MILESTONE.CERT.EXPIRY.WARN}|Number of days until the certificate expires|`7`||
 |{$MILESTONE.CONN}|Connection protocol used for initial communication, use `https` or `http`|`https`||
 |{$MILESTONE.ID}|Identifier uniquely identifying Zabbix calling instance. Typically, each ID should refer to a specific machine running this template|`ZABBIX_00`||
+|{$MILESTONE.LC.DISCONTINUED.WARN}|Number of days until the XProtect release reaches its Discontinued date|`90`||
+|{$MILESTONE.LC.TERMINATION.WARN}|Number of days until the XProtect release reaches its Termination date|`90`||
 |{$MILESTONE.LLD_FREQ}|Low-level discovery frequency, keep lower than Milestone token duration which defaults to 60m|`50m`||
 |{$MILESTONE.MOBILE.DH.PRIME}|Mobile Server expects the username and password to be encrypted with a Diffie-Hellman-Merkle shared secret. This is the prime number used (length 1024 or 2048 bit) in hexadecimal format|`F488FD584E49DBCD20B49DE49107366B336C380D451D0F7C88B31C7C5B2D8EF6F3C923C043F0A55B188D8EBB558CB85D38D334FD7C175743A31D186CDE33212CB52AFF3CE1B1294018118D7C84A70A72D686C40319C807297ACA950CD9969FABD00A509B0246D3083D66A45D419F9C7CBD894B221926BAABA25EC355E92F78C7`||
 |{$MILESTONE.MOBILE.DH.USERANDOM}|Set to `1024` or `2048` if Zabbix has to generate a random prime of choosen length for DH key exchange. Requires huge cpu resources, potentially leading to item timeout. Leave empty if you are not sure.|||
@@ -80,6 +82,7 @@ GNU General Public License version 3 (GPLv3)
 |Archives||`Dependent item`|mxp.discovery.archives|
 |Cameras|Discovers all enabled cameras|`Dependent item`|mxp.discovery.cameras|
 |Hotfixes|Retrieves data about available hotfixes from Milestone website|`Dependent item`|mxp.discovery.hotfixes|
+|Lifecycle|Retrieves lifecycle data for the current XProtect version from the Milestone public website|`Dependent item`|mxp.discovery.lc|
 |Management Servers||`Dependent item`|mxp.discovery.mgm|
 |Mobile Servers||`Dependent item`|mxp.discovery.mob|
 |Recording Servers||`Dependent item`|mxp.discovery.rec|
@@ -121,6 +124,23 @@ GNU General Public License version 3 (GPLv3)
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
 |Milestone: New hotfix available for {#HOTFIX_NAME}||`last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#1)<>last(/Milestone XProtect/mxp.upd[{#HOTFIX_KEY}],#2)`|Information||
+
+### Item prototypes for Lifecycle discovery
+
+|Name|Description|Type|Key and additional info|
+|----|-----------|----|-----------------------|
+|Milestone: XProtect Product lifecycle Discontinued date|The date on which this XProtect version entered or will enter the Discontinued stage|`Script`|mxp.lc[{#LC_KEY}.discontinued]|
+|Milestone: XProtect Product lifecycle General Availability date|The date on which this XProtect version has been released|`Script`|mxp.lc[{#LC_KEY}.ga]|
+|Milestone: XProtect Product lifecycle Limited Availability date|The date on which this XProtect version entered or will enter Limited Availability|`Script`|mxp.lc[{#LC_KEY}.la]|
+|Milestone: XProtect Product lifecycle stage|Product lifecycle stage|`Script`|mxp.lc[{#LC_KEY}.stage]|
+|Milestone: XProtect Product lifecycle Terminated date|The date on which this XProtect version entered or will enter the Terminated stage|`Script`|mxp.lc[{#LC_KEY}.terminated]|
+
+### Trigger prototypes for Lifecycle discovery
+|Name|Description|Expression|Severity|Dependencies and additional info|
+|----|-----------|----------|--------|--------------------------------|
+|Milestone: XProtect Product lifecycle stage not available|The current XProtect version lifecycle stage cannot be retrieved. It might be a Terminated version.|`count(/Milestone XProtect/mxp.lc[{#LC_KEY}.stage],#3,"eq","NA")=3`|Average||
+|Milestone: XProtect product release nearing Discontinued date|The current XProtect version lifecycle will enter the Discontinued stage in {$MILESTONE.LC.DISCONTINUED.WARN} days. No more operation-critical hotfixes after this date.|`(last(/Milestone XProtect/mxp.lc[{#LC_KEY}.discontinued]) - now()) / 86400 < {$MILESTONE.LC.DISCONTINUED.WARN}`|Warning|`Milestone XProtect: Milestone: XProtect Product lifecycle stage not available`|
+|Milestone: XProtect product release nearing Termination date|The current XProtect version lifecycle will enter the Terminated stage in {$MILESTONE.LC.TERMINATION.WARN} days|`(last(/Milestone XProtect/mxp.lc[{#LC_KEY}.discontinued]) - now()) / 86400 < {$MILESTONE.LC.DISCONTINUED.WARN}`|High|`Milestone XProtect: Milestone: XProtect Product lifecycle stage not available`|
 
 ### Item prototypes for Management Servers discovery
 
