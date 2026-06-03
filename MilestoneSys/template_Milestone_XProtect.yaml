@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2026-02-08T09:00:00Z'
+  date: '2026-06-03T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '1.0',
+                    version: '1.0.1',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -382,6 +382,22 @@ zabbix_export:
                         enabled: obj.enabled
                     };
                 });
+                // Fallback: if no Mobile Servers found via MIP endpoint
+                if (MXP.Srv.Mob.length === 0) {
+                    MXP.Srv.Mob = registeredSvcs
+                        .filter(function(obj) {
+                            return obj.type && obj.type === '7510bbae-dba5-4c2e-b037-74a0222484c6';;
+                        })
+                        .map(function(obj) {
+                            return {
+                                displayName: obj.name,
+                                id: obj.instance,
+                                uri: (obj.uri && obj.uri.string) ? obj.uri.string : '',
+                                version: 'N/A',
+                                enabled: obj.enabled
+                            };
+                        });
+                }
                 return MXP.stringify();
             }
             catch (error) {
@@ -785,7 +801,7 @@ zabbix_export:
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 4h
-              timeout: 30s
+              timeout: 10s
               tags:
                 - tag: component
                   value: camera
@@ -1740,8 +1756,7 @@ zabbix_export:
                       //Avoid any error, all data already gathered
                     }
                   },
-                  connect: function (publicKeyBase64) {
-                    var primeLength = (publicKeyBase64.length > 172) ? 2048 : 1024;
+                  connect: function (publicKeyBase64, primeLength) {
                     var input = '<Param Name="PublicKey" Value="' + publicKeyBase64 + '"/>' +
                     '<Param Name="PrimeLength" Value="' + primeLength + '" />' +
                     '<Param Name="EncryptionPadding" Value="PKCS7" />' +
@@ -1788,34 +1803,12 @@ zabbix_export:
                     }
                   },
                   btoa: function(str){
-                    var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-                    var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4;
-                    var i = 0;
-                    while (i < str.length) {
-                        chr1 = str.charCodeAt(i++);
-                        chr2 = i < str.length ? str.charCodeAt(i++) : NaN;
-                        chr3 = i < str.length ? str.charCodeAt(i++) : NaN;
-                        enc1 = chr1 >> 2;
-                        enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-                        enc3 = isNaN(chr2) ? 64 : ((chr2 & 15) << 2) | (chr3 >> 6);
-                        enc4 = isNaN(chr3) ? 64 : chr3 & 63;
-                        output += keyStr.charAt(enc1) + keyStr.charAt(enc2) + keyStr.charAt(enc3) + keyStr.charAt(enc4);
-                    }
-                    return output;
+                    var words = CryptoJS.enc.Latin1.parse(str);
+                    return CryptoJS.enc.Base64.stringify(words);
                   },
-                  atob: function(input) {
-                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-                    var str = String(input).replace(/=+$/, '');
-                    var output = '';
-                    for (var i = 0; i < str.length;) {
-                        const char1 = chars.indexOf(str.charAt(i++));
-                        const char2 = chars.indexOf(str.charAt(i++));
-                        const char3 = chars.indexOf(str.charAt(i++));
-                        const char4 = chars.indexOf(str.charAt(i++));
-                        const bits = (char1 << 18) | (char2 << 12) | (char3 << 6) | char4;
-                        output += String.fromCharCode((bits >> 16) & 0xff, (bits >> 8) & 0xff, bits & 0xff);
-                    }
-                    return output;
+                  atob: function(str) {
+                    var words = CryptoJS.enc.Base64.parse(str);
+                    return words.toString(CryptoJS.enc.Latin1);
                   },
                   keyFromBase64: function (base64KeyString) {
                     // Use custom atob due to some inconsistent output with builtin atob function 
@@ -1832,7 +1825,8 @@ zabbix_export:
                   },
                   keyToBase64: function (hexKeyString) {
                     // Fix hex length and convert to little-endian order
-                    var hexString = (hexKeyString.length % 2 !== 0) ? '0' + hexKeyString.match(/.{2}/g).reverse().join('') : hexKeyString.match(/.{2}/g).reverse().join('');
+                    if (hexKeyString.length % 2 !== 0) hexKeyString = '0' + hexKeyString;
+                    var hexString = hexKeyString.match(/.{2}/g).reverse().join('');
                     // If hex string length is 256(128 byte) a zero byte should be added before the resulting 129 bytes are base64 encoded
                     if(hexString.length === 256) {
                       hexString = hexString + '00';
@@ -1874,7 +1868,7 @@ zabbix_export:
                     var serverKey = this.keyFromBase64(base64PublicKey);
                     var sharedSecret = bigInt(serverKey, 16).modPow(this._pvt.privateKey,this._pvt.primeBigInt).toString(16);
                     this._pvt.sharedKey = (sharedSecret.length % 2 !== 0) ? '0' + sharedSecret : sharedSecret;
-                    return sharedSecret;
+                    return this._pvt.sharedKey;
                   },
                   loginProcess: function (user, password) {
                     var publicKeyBase64, primeLength, useRandomePrime;
@@ -1886,21 +1880,14 @@ zabbix_export:
                       primeLength = (defaultPrime.length === 256) ? 1024 : 2048;
                       publicKeyBase64 = this.generateDHkeys(primeLength, false);
                     }
-                    var c = this.connect(publicKeyBase64);
+                    var c = this.connect(publicKeyBase64, primeLength);
                     var l = this.login(user, password);
                   }
                 }
                 
                 var params = JSON.parse(value);
                 try {
-                  try {
-                    var l = MXP.loginProcess(params.USER, params.PASSWORD);
-                  }
-                  catch (error) {
-                    // Sometimes DH process fails, so try a second time or die
-                    if(parseInt(error) === 16) l = MXP.loginProcess(params.USER, params.PASSWORD);
-                    else throw error;
-                  }
+                  var l = MXP.loginProcess(params.USER, params.PASSWORD);
                   var s = MXP.getServerStatus();
                   var d = MXP.disconnect();
                   s.ZabbixError = "0"
