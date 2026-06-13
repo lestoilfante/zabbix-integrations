@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2023-09-04T13:35:50Z'
+  date: '2026-06-13T17:09:30Z'
   groups:
     - uuid: 3dcd5bbe90534f9e8eb5c2d53756af63
       name: Templates/Power
@@ -16,6 +16,7 @@ zabbix_export:
         Mandatory macro:
         {$APCSC.USER}
         {$APCSC.PASSWORD}
+        {$APCSC.OTPAUTH}
         
         Optional macro:
         {$APC.SERIAL}
@@ -24,7 +25,7 @@ zabbix_export:
         (https://github.com/lestoilfante/APC-ScrapConnect/blob/master/APC-ScrapConnect.php)
                 
         ## Author
-        Copyright (C) 2023 lestoilfante (https://github.com/lestoilfante)
+        Copyright (C) 2023-2026 lestoilfante (https://github.com/lestoilfante)
                 
         ## License
         GNU General Public License version 3 (GPLv3)
@@ -48,13 +49,13 @@ zabbix_export:
         - uuid: 375199e8303143ed86005c441e200b19
           name: 'Device discovery'
           type: EXTERNAL
-          key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",discovery,"{$APC.SERIAL}","{HOST.IP}"]'
+          key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",discovery,"{$APC.SERIAL}","{HOST.IP}"]'
           delay: 1h
           item_prototypes:
             - uuid: 4e782f61dff54e788839465dd383abf8
               name: 'Get details'
               type: EXTERNAL
-              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               history: '0'
               trends: '0'
               value_type: TEXT
@@ -62,7 +63,7 @@ zabbix_export:
             - uuid: 72e682b285a747e48bd2687874f13d51
               name: 'Get Info'
               type: EXTERNAL
-              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+              key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               history: '0'
               trends: '0'
               value_type: TEXT
@@ -88,7 +89,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -122,7 +123,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
             - uuid: 4fb20806ed92442a8b338f4ade3e5a21
               name: 'Battery last replace date'
               type: DEPENDENT
@@ -146,7 +147,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -175,7 +176,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -196,7 +197,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -329,7 +330,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -350,7 +351,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -377,7 +378,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -404,7 +405,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -425,7 +426,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -453,7 +454,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -481,7 +482,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: power
@@ -503,7 +504,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
             - uuid: 58676b38738646c19d297eece213168f
               name: 'Selftest interval'
               type: DEPENDENT
@@ -521,7 +522,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
             - uuid: 0b690db56b9b4042b8b8a1f32e4a1e8b
               name: 'Selftest last result'
               type: DEPENDENT
@@ -542,7 +543,7 @@ zabbix_export:
                   parameters:
                     - 1d
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               trigger_prototypes:
                 - uuid: a3269bb9ed3348819b4b8a6fd32300a9
                   expression: 'last(/APC Smart-UPS SmartConnect/apcsc.selftest.result[{#ID}])<>{$APCSC.SELFTEST_OK}'
@@ -564,7 +565,7 @@ zabbix_export:
                   parameters:
                     - 1d
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -585,7 +586,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -610,7 +611,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
             - uuid: 76f600c6641b4ee3b4b29c9802d588db
               name: 'Device Firmware latest'
               type: DEPENDENT
@@ -630,7 +631,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
             - uuid: 183144ec91ce436495743d38f947972a
               name: 'Device Firmware'
               type: DEPENDENT
@@ -652,7 +653,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
             - uuid: f9bc70592174496d9c789044319be516
               name: Model
               type: DEPENDENT
@@ -670,7 +671,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -691,7 +692,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -727,7 +728,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               trigger_prototypes:
                 - uuid: 639ce4cbdaac4caebb1888de05d3c41c
                   expression: 'last(/APC Smart-UPS SmartConnect/apcsc.system.OperatingMode[{#ID}])<>{$APCSC.OPERATIVE_OK}'
@@ -763,7 +764,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               trigger_prototypes:
                 - uuid: 654d7d0afa98428289585f87ec178dbf
                   expression: 'last(/APC Smart-UPS SmartConnect/apcsc.system.pluginStatus[{#ID}])<>{$APCSC.PLUGIN_OK}'
@@ -786,7 +787,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
               tags:
                 - tag: component
                   value: inventory
@@ -814,7 +815,7 @@ zabbix_export:
                   parameters:
                     - 6h
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]'
               tags:
                 - tag: component
                   value: temperature
@@ -848,7 +849,7 @@ zabbix_export:
                   parameters:
                     - ''
               master_item:
-                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]'
+                key: 'APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]'
           preprocessing:
             - type: NOT_MATCHES_REGEX
               parameters:
@@ -869,6 +870,9 @@ zabbix_export:
         - macro: '{$APCSC.OPERATIVE_OK}'
           value: online
           description: 'OK value for JSON key upsOperatingMode'
+        - macro: '{$APCSC.OTPAUTH}'
+          type: SECRET_TEXT
+          description: 'APC SmartConnect authenticator setup URI'
         - macro: '{$APCSC.PASSWORD}'
           type: SECRET_TEXT
           description: 'APC SmartConnect password'

@@ -8,7 +8,14 @@ This Zabbix template collects information from the APC SmartConnect Cloud platfo
 
 * **Zabbix version 6.0 or later**
 * **External script `APC-ScrapConnect.php` (https://github.com/lestoilfante/APC-ScrapConnect)**
-* **Two-factor authentication (2FA) must be disabled on SmartConnect account**
+* **Two-factor authentication (2FA) on SmartConnect account enabled and the full authenticator setup URI beginning with "otpauth://totp/" known**  
+ (e.g. `otpauth://totp/Schneider%20Electric:EMAIL?secret=BASE32SECRET&issuer=Schneider%20Electric&algorithm=SHA1&digits=6&period=30`)
+
+### How to get the authenticator setup URI
+ During MFA enrollment, choose the "Google Authenticator or similar app" option: it will show
+ a QR code and ask you to confirm enrollment with a TOTP code. Before confirming, scan
+ that QR code with a camera app or a trusted QR code reader app capable of extracting the
+ underlying `otpauth://totp/...` URI string
 
 ### Items
 * **Set inventory type**
@@ -18,7 +25,7 @@ This Zabbix template collects information from the APC SmartConnect Cloud platfo
 
 ## Author
 
-Copyright (C) 2023 [lestoilfante](https://github.com/lestoilfante)
+Copyright (C) 2023-2026 [lestoilfante](https://github.com/lestoilfante)
 
 ## License
 GNU General Public License version 3 (GPLv3)
@@ -28,7 +35,7 @@ GNU General Public License version 3 (GPLv3)
 1. Download the `APC-ScrapConnect.php` script and save it to the `ExternalScripts` folder on your Zabbix Server or Proxy (/usr/lib/zabbix/externalscripts/APC-ScrapConnect.php).
 2. Edit `APC-ScrapConnect.php` and add a new line with `#!/usr/bin/php` at the top of the file to allow it to be run directly from the command line.
 3. Make `APC-ScrapConnect.php` executable for user running your Zabbix server/proxy.
-4. Import template `template_APC_SmartConnect.yaml`, assign to UPS Host, set the macros `{$APCSC.USER}` `{$APCSC.PASSWORD}` as per SmartConnect credentials and… and stop, done! The automated discovery will look for the first device registered on SmartConnect that has an IP equal to Host interface defined in Zabbix, or alternatively, if you have multiple devices with the same IP, set the macro `{$APC.SERIAL}` to proceed with discovery by serial number.
+4. Import template `template_APC_SmartConnect.yaml`, assign to UPS Host, set the macros `{$APCSC.USER}` `{$APCSC.PASSWORD}` `{$APCSC.OTPAUTH}` as per SmartConnect account and… and stop, done! The automated discovery will look for the first device registered on SmartConnect that has an IP equal to Host interface defined in Zabbix, or alternatively, if you have multiple devices with the same IP, set the macro `{$APC.SERIAL}` to proceed with discovery by serial number.
 
 ### Notes
 
@@ -39,6 +46,7 @@ If you get a `Timeout while executing a shell script` or similar error increase 
 |Name|Description|Default|Type|Required|
 |----|-----------|-------|----|--------|
 |{$APC.SERIAL}|<p>Device SN.</p>|-|Text|*|
+|{$APCSC.OTPAUTH}|<p>APC SmartConnect authenticator setup URI.</p>|-|Secret Text|*|
 |{$APCSC.PASSWORD}|<p>APC SmartConnect password.</p>|-|Secret Text|*|
 |{$APCSC.USER}|<p>APC SmartConnect username.</p>|-|Text|*|
 |{$BATTERY.CAPACITY.MIN.WARN}|<p>Minimum battery capacity percentage for trigger expression.</p>|`50`|Text||
@@ -59,7 +67,7 @@ There are no template links in this template.
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Device discovery|Discovery based on Host IP or device SN|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",discovery,"{$APC.SERIAL}","{HOST.IP}"]|
+|Device discovery|Discovery based on Host IP or device SN|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",discovery,"{$APC.SERIAL}","{HOST.IP}"]|
 
 ## Items collected
 
@@ -76,8 +84,8 @@ There are no template links in this template.
 |Device Firmware|Current firmware installed on the UPS|`Dependent item`|apcsc.system.firmware[{#ID}]|
 |Device Firmware latest|Latest firmware available for this UPS|`Dependent item`|apcsc.system.firmwareLatest[{#ID}]|
 |External battery packs count|-|`Dependent item`|apcsc.system.batteryFramesInstalledCount[{#ID}]|
-|Get details|JSON data feeding child items|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwdetails,"{#ID}"]|
-|Get Info|JSON data feeding child items|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}",gwinfo,"{#ID}"]|
+|Get details|JSON data feeding child items|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwdetails,"{#ID}"]|
+|Get Info|JSON data feeding child items|`External check`|APC-ScrapConnect.php["{$APCSC.USER}","{$APCSC.PASSWORD}","{$APCSC.OTPAUTH}",gwinfo,"{#ID}"]|
 |Input efficiency|-|`Dependent item`|apcsc.input.efficiency[{#ID}]|
 |Input frequency|-|`Dependent item`|apcsc.input.frequency[{#ID}]|
 |Input voltage|-|`Dependent item`|apcsc.input.voltage[{#ID}]|
