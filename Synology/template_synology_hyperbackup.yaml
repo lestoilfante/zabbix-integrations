@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2024-11-11T08:51:02Z'
+  date: '2026-06-20T09:39:46Z'
   groups:
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
@@ -12,7 +12,7 @@ zabbix_export:
         Check Synology Hyper Backup jobs via DSM Web Api
         
         ## Author
-        Copyright (C) 2024 lestoilfante (https://github.com/lestoilfante)
+        Copyright (C) 2024-2026 lestoilfante (https://github.com/lestoilfante)
         
         ## License
         GNU General Public License version 3 (GPLv3)
@@ -228,10 +228,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.Id == {#TASK_ID})]'
-                - type: JSONPATH
-                  parameters:
-                    - $..Last_Result.first()
+                    - '$[?(@.Id == {#TASK_ID})].Last_Result.first()'
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
@@ -263,10 +260,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.Id == {#TASK_ID})]'
-                - type: JSONPATH
-                  parameters:
-                    - $..Last_Date.first()
+                    - '$[?(@.Id == {#TASK_ID})].Last_Date.first()'
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
@@ -288,10 +282,9 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.Id == {#TASK_ID})]'
-                - type: JSONPATH
-                  parameters:
-                    - $..Next_Date.first()
+                    - '$[?(@.Id == {#TASK_ID})].Next_Date.first()'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: N/A
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
@@ -299,7 +292,7 @@ zabbix_export:
                   value: 'Synology Backup'
               trigger_prototypes:
                 - uuid: c4b543722573449195f31057af0259d1
-                  expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupNextRun[{#TASK_ID}])=""'
+                  expression: 'last(/Synology Hyper Backup/syno.rest.HyperBackupNextRun[{#TASK_ID}])="N/A"'
                   name: 'Hyper Backup task {#TASK_NAME} is not scheduled'
                   url: 'https://{HOST.CONN}:{$SYNO.REST.API.PORT}'
                   priority: INFO
@@ -332,10 +325,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.Id == {#TASK_ID})]'
-                - type: JSONPATH
-                  parameters:
-                    - $..State.first()
+                    - '$[?(@.Id == {#TASK_ID})].State.first()'
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
@@ -365,10 +355,7 @@ zabbix_export:
                   error_handler: DISCARD_VALUE
                 - type: JSONPATH
                   parameters:
-                    - '$.[?(@.Id == {#TASK_ID})]'
-                - type: JSONPATH
-                  parameters:
-                    - $..Status.first()
+                    - '$[?(@.Id == {#TASK_ID})].Status.first()'
               master_item:
                 key: syno.rest.HyperBackupScript
               tags:
@@ -409,7 +396,7 @@ zabbix_export:
           value: 15m
           description: 'LLD Interval'
         - macro: '{$SYNO.REST.API.BACKUP.RESULT_OK}'
-          value: ^done|backingup|version_deleting$
+          value: ^(done|backingup|version_deleting)$
           description: 'Regex matching all backup result values that wont fire default trigger'
         - macro: '{$SYNO.REST.API.PORT}'
           value: '5001'

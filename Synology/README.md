@@ -18,7 +18,7 @@ Created and tested with:
 
 ## Author
 
-Copyright (C) 2023 [lestoilfante](https://github.com/lestoilfante)
+Copyright (C) 2023-2026 [lestoilfante](https://github.com/lestoilfante)
 
 ## License
 GNU General Public License version 3 (GPLv3)
