@@ -29,6 +29,13 @@ If Zabbix Agent 2 is not going to be installed on Milestone Management Server us
 2. Point this secondary Host Interface to any available agent, i.e. 127.0.0.1 for Agent 2 running on Zabbix Server itself
 3. Select this interface on Host's LLD rule.  
 
+### Windows Authentication
+
+Both XProtect Basic users and Windows users are supported. Windows Authentication is automatically used when `{$MILESTONE.USER}` is in the form `DOMAIN\username`.  
+Protocol is selected by `{$MILESTONE.AUTH.WINDOWS}` and defaults to `HTTPAUTH_NTLM` for maximum compatibility.
+
+Kerberos (`HTTPAUTH_NEGOTIATE`) requires additional configuration on Zabbix side, see [WindowsAuthentication.md](WindowsAuthentication.md) for requirements and testing.
+
 ## Author
 
 Copyright (C) 2024-2026 [lestoilfante](https://github.com/lestoilfante)
@@ -47,6 +54,7 @@ GNU General Public License version 3 (GPLv3)
 |Name|Description|Default|Required|
 |----|-----------|-------|--------|
 |{$MILESTONE.ARCHIVE.WARN}|Percentage of available archive space remaining that will fire trigger|`10`||
+|{$MILESTONE.AUTH.WINDOWS}|Windows authentication protocol for XProtect login when Windows Authentication is used. Valid values: `HTTPAUTH_NEGOTIATE` or `HTTPAUTH_NTLM`|`HTTPAUTH_NTLM`||
 |{$MILESTONE.CERT.EXPIRY.WARN}|Number of days until the certificate expires|`7`||
 |{$MILESTONE.CONN}|Connection protocol used for initial communication, use `https` or `http`|`https`||
 |{$MILESTONE.ID}|Identifier uniquely identifying Zabbix calling instance. Typically, each ID should refer to a specific machine running this template|`ZABBIX_00`||
@@ -57,7 +65,7 @@ GNU General Public License version 3 (GPLv3)
 |{$MILESTONE.MOBILE.DH.USERANDOM}|Set to `1024` or `2048` if Zabbix has to generate a random prime of choosen length for DH key exchange. Requires huge cpu resources, potentially leading to item timeout. Leave empty if you are not sure.|||
 |{$MILESTONE.PASSWORD}|XProtect password||*|
 |{$MILESTONE.STORAGE.WARN}|Percentage of available storage space remaining that will fire trigger|`10`||
-|{$MILESTONE.USER}|XProtect user||*|
+|{$MILESTONE.USER}|XProtect user, use `DOMAIN\username` format for Windows users||*|
 
 ## Items
 

@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2026-06-03T09:00:00Z'
+  date: '2026-10-30T06:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '1.0.1',
+                    version: '1.1.0',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -85,7 +85,7 @@ zabbix_export:
                     response: null,
                 },
                 
-                requestApi: function (url, data) {
+                requestApi: function (url, data, useWinAuth) {
                     this._pvt.request ? this._pvt.request.clearHeader() : this._pvt.request = new HttpRequest();
                     if (!this._pvt.response) this._pvt.response = new HttpRequest();
             
@@ -94,6 +94,13 @@ zabbix_export:
                     }
             
                     this._pvt.request.addHeader("Accept: application/json");
+                    
+                    // Windows Auth
+                    if (useWinAuth) {
+                        var winHttpAuth = ('{$MILESTONE.AUTH.WINDOWS}' === 'HTTPAUTH_NEGOTIATE') ? HTTPAUTH_NEGOTIATE : HTTPAUTH_NTLM;
+                        this._pvt.request.setHttpAuth(winHttpAuth, this.params.user, this.params.password);
+                    }
+                    
                     if (this.Auth.OAuth.Token) this._pvt.request.addHeader("Authorization: Bearer " + this.Auth.OAuth.Token);
             
                     if (data !== '') {
@@ -147,10 +154,15 @@ zabbix_export:
                         throw 'Idp uri not found';
                     }
                     try {
-                        var r =  this.requestApi(
-                            this.Uri.Idp + '/connect/token', 
-                            'grant_type=password&username=' + encodeURIComponent(this.params.user) + '&client_id=GrantValidatorClient&password=' + encodeURIComponent(this.params.password)
-                        );
+                        // Enable Windows Auth when username is DOMAIN\user
+                        if (this.params.user.indexOf('\\') > 0) {
+                            var r =  this.requestApi(this.Uri.Idp + '/connect/token', 'grant_type=windows_auth&client_id=winauthclient', true);
+                        }
+                        else {
+                            var r =  this.requestApi(this.Uri.Idp + '/connect/token', 
+                            'grant_type=password&username=' + encodeURIComponent(this.params.user) + '&client_id=GrantValidatorClient&password=' + encodeURIComponent(this.params.password));
+                        }
+                        
                         if (r.hasOwnProperty('access_token') && r.access_token !== '') {
                             this.Auth.OAuth.Token = r.access_token;
                             // default expiration is typically 3600 secs
@@ -2494,6 +2506,9 @@ zabbix_export:
         - macro: '{$MILESTONE.ARCHIVE.WARN}'
           value: '10'
           description: 'Percentage of available archive space remaining that will fire trigger'
+        - macro: '{$MILESTONE.AUTH.WINDOWS}'
+          value: HTTPAUTH_NTLM
+          description: 'Windows authentication protocol for XProtect login when Windows Authentication is used. Valid values: ''HTTPAUTH_NEGOTIATE'' or ''HTTPAUTH_NTLM'''
         - macro: '{$MILESTONE.CERT.EXPIRY.WARN}'
           value: '7'
           description: 'Number of days until the certificate expires'
