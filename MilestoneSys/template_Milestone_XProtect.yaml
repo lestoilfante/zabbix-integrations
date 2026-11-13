@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2026-10-30T06:00:00Z'
+  date: '2026-11-11T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '1.1.0',
+                    version: '1.2.0',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -696,11 +696,111 @@ zabbix_export:
           delay: '0'
           description: 'Discovers all enabled cameras.'
           item_prototypes:
+            - uuid: f7a169002d5a435fa2998c6a6c599ef7
+              name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} connection error'
+              type: DEPENDENT
+              key: 'mxp.cam[{#CAM_ID}.error]'
+              delay: '0'
+              history: 1d
+              trends: '0'
+              description: |
+                Camera connection error flag derived from camera status, one value per check.
+                1 - Camera status is 1 (connection to device failed)
+                0 - Any other camera status
+                History must cover the longest {$MILESTONE.CAM.*.PERIOD}.
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      return parseInt(value, 10) === 1 ? 1 : 0;
+              master_item:
+                key: 'mxp.cam[{#CAM_ID}]'
+              tags:
+                - tag: component
+                  value: camera
+              trigger_prototypes:
+                - uuid: 3e6e4656288744e4ac782e93f58e6abe
+                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.error])=1 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"},"eq",0)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.ERR.MINCOUNT:"{#CAM_CTX}"}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"},"eq",1)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.OK.MINCOUNT:"{#CAM_CTX}"}'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is down'
+                  priority: WARNING
+                  description: |
+                    Recording server has had no connection to the camera for {$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"}.
+                    Recovers once camera reports no connection error for {$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"}.
+                  tags:
+                    - tag: alert
+                      value: down
+                - uuid: 51919c59351e4f77973a48e5ecb15df9
+                  expression: 'changecount(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.FLAP.PERIOD:"{#CAM_CTX}"},"dec")>={$MILESTONE.CAM.FLAP.COUNT:"{#CAM_CTX}"}'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is unstable'
+                  opdata: 'Connection recoveries: {ITEM.VALUE}'
+                  priority: WARNING
+                  description: 'Camera lost and recovered connection at least {$MILESTONE.CAM.FLAP.COUNT:"{#CAM_CTX}"} times within {$MILESTONE.CAM.FLAP.PERIOD:"{#CAM_CTX}"}.'
+                  dependencies:
+                    - name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is down'
+                      expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.error])=1 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"},"eq",0)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.ERR.MINCOUNT:"{#CAM_CTX}"}'
+                      recovery_expression: 'count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"},"eq",1)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.OK.MINCOUNT:"{#CAM_CTX}"}'
+                  tags:
+                    - tag: alert
+                      value: unstable
             - uuid: 70ffcab3c21741298188995cc51e6549
               name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status'
-              type: SCRIPT
+              type: DEPENDENT
               key: 'mxp.cam[{#CAM_ID}.status]'
+              delay: '0'
               history: 30d
+              description: |
+                Camera status, stored on change.
+                Status values:
+                0 - Ok
+                1 - Connection to device failed
+                2 - Device without active license
+                3 - Generic device error
+                4 - Media overflow, server is receiving media at a faster rate than the rate it can process and write to the disk
+                5 - Media stream data is being stored at best effort, but some frames will be missed
+              valuemap:
+                name: 'Camera status'
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 4h
+              master_item:
+                key: 'mxp.cam[{#CAM_ID}]'
+              tags:
+                - tag: component
+                  value: camera
+              trigger_prototypes:
+                - uuid: 10674c697e734964b85ff92282b40acf
+                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])=2'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is not licensed'
+                  priority: WARNING
+                  tags:
+                    - tag: alert
+                      value: license
+                - uuid: 90c1ea2cb55c47c38ad6b1d49e581fa1
+                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])=1'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} lost connection'
+                  priority: INFO
+                  description: 'Any camera connection loss, recorded as it happens.'
+                  tags:
+                    - tag: alert
+                      value: connection
+                - uuid: 21a2b0ec935d477ea84d0edeb1474f0c
+                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])>=3'
+                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status'
+                  opdata: 'Camera state is {ITEM.VALUE}'
+                  priority: WARNING
+                  description: 'Camera reports a device, overflow or GOP writing error.'
+                  tags:
+                    - tag: alert
+                      value: error
+            - uuid: 33f5519634ed4ce2b35a7d7be480ab7f
+              name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status check'
+              type: SCRIPT
+              key: 'mxp.cam[{#CAM_ID}]'
+              history: '0'
+              trends: '0'
               params: |
                 var MXP = {
                     Auth: {
@@ -763,19 +863,11 @@ zabbix_export:
                     return JSON.stringify(MXP.getCurrentDeviceStatus('{#CAM_ID}'));
                 }
                 catch(e) {
-                
+
                 }
               description: |
-                Gets camera status from recording server.
-                Status values:
-                0 - Ok
-                1 - Connection to device failed
-                2 - Device without active license
-                3 - Generic device error
-                4 - Media overflow, server is receiving media at a faster rate than the rate it can process and write to the disk
-                5 - Media stream data is being stored at best effort, but some frames will be missed
-              valuemap:
-                name: 'Camera status'
+                Gets camera status from recording server on every check.
+                Not stored, feeds camera status and error items.
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -810,19 +902,10 @@ zabbix_export:
                       }
                       
                       return 0;
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - 4h
-              timeout: 10s
+              timeout: 30s
               tags:
                 - tag: component
                   value: camera
-              trigger_prototypes:
-                - uuid: 21a2b0ec935d477ea84d0edeb1474f0c
-                  expression: 'last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])<> 0'
-                  name: 'Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status'
-                  opdata: 'Camera state is {ITEM.VALUE}'
-                  priority: WARNING
           master_item:
             key: mxp.info
           preprocessing:
@@ -846,10 +929,16 @@ zabbix_export:
                   }
                   
                   var storage = createStorageMap();
-                  
+
+                  // User macro context "<recorder>/<camera>", quotes and backslashes would break the context syntax
+                  function macroContext(rec, cam) {
+                    return (String(rec) + '/' + String(cam)).replace(/["\\]/g, '');
+                  }
+
                   var lld = MXP.Hw.Cam.map(function(obj) {
                       if (obj.enabled) {
                           return {
+                              "{#CAM_CTX}": macroContext(storage[obj.storageId].recDisplayName, obj.displayName),
                               "{#CAM_DNAME}": obj.displayName,
                               "{#CAM_ID}": obj.id,
                               "{#REC_DNAME}": storage[obj.storageId].recDisplayName,
@@ -2509,6 +2598,24 @@ zabbix_export:
         - macro: '{$MILESTONE.AUTH.WINDOWS}'
           value: HTTPAUTH_NTLM
           description: 'Windows authentication protocol for XProtect login when Windows Authentication is used. Valid values: ''HTTPAUTH_NEGOTIATE'' or ''HTTPAUTH_NTLM'''
+        - macro: '{$MILESTONE.CAM.ERR.MINCOUNT}'
+          value: '8'
+          description: 'Minimum number of camera readings within {$MILESTONE.CAM.ERR.PERIOD} required to fire the "is down" trigger. Keep lower than the number of 1m checks fitting in {$MILESTONE.CAM.ERR.PERIOD}. Supports context "<recorder>/<camera>"'
+        - macro: '{$MILESTONE.CAM.ERR.PERIOD}'
+          value: 10m
+          description: 'Time a camera must stay without connection before the "is down" trigger fires. Supports context "<recorder>/<camera>", e.g. {$MILESTONE.CAM.ERR.PERIOD:"REC01/Gate 3"} or {$MILESTONE.CAM.ERR.PERIOD:regex:"^(REC01|REC02)/"}'
+        - macro: '{$MILESTONE.CAM.FLAP.COUNT}'
+          value: '5'
+          description: 'Number of connection recoveries within {$MILESTONE.CAM.FLAP.PERIOD} that fires the "is unstable" trigger. Supports context "<recorder>/<camera>"'
+        - macro: '{$MILESTONE.CAM.FLAP.PERIOD}'
+          value: 1h
+          description: 'Time window used to count camera connection recoveries. Supports context "<recorder>/<camera>"'
+        - macro: '{$MILESTONE.CAM.OK.MINCOUNT}'
+          value: '4'
+          description: 'Minimum number of camera readings within {$MILESTONE.CAM.OK.PERIOD} required to recover the "is down" trigger. Keep lower than the number of 1m checks fitting in {$MILESTONE.CAM.OK.PERIOD}. Supports context "<recorder>/<camera>"'
+        - macro: '{$MILESTONE.CAM.OK.PERIOD}'
+          value: 5m
+          description: 'Time a camera must report no connection error before the "is down" trigger recovers. Supports context "<recorder>/<camera>"'
         - macro: '{$MILESTONE.CERT.EXPIRY.WARN}'
           value: '7'
           description: 'Number of days until the certificate expires'

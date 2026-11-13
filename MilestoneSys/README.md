@@ -49,12 +49,20 @@ GNU General Public License version 3 (GPLv3)
 1. Define a Host pointing to Milestone *Management Server* IP/DNS and set the macros `{$MILESTONE.USER}` and `{$MILESTONE.PASSWORD}`
 2. Import template `template_Milestone_XProtect.yaml` and link it to Milestone *Management Server* Host
 
+When importing over a previous version, check [Upgrading.md](Upgrading.md) for behaviour changes.
+
 ## Macros used
 
 |Name|Description|Default|Required|
 |----|-----------|-------|--------|
 |{$MILESTONE.ARCHIVE.WARN}|Percentage of available archive space remaining that will fire trigger|`10`||
 |{$MILESTONE.AUTH.WINDOWS}|Windows authentication protocol for XProtect login when Windows Authentication is used. Valid values: `HTTPAUTH_NEGOTIATE` or `HTTPAUTH_NTLM`|`HTTPAUTH_NTLM`||
+|{$MILESTONE.CAM.ERR.MINCOUNT}|Minimum number of camera readings within `{$MILESTONE.CAM.ERR.PERIOD}` required to fire the "is down" trigger. Keep lower than the number of 1m checks fitting in `{$MILESTONE.CAM.ERR.PERIOD}`. Supports camera context|`8`||
+|{$MILESTONE.CAM.ERR.PERIOD}|Time a camera must stay without connection before the "is down" trigger fires. Supports [camera context](#camera-thresholds-per-recorder-or-camera)|`10m`||
+|{$MILESTONE.CAM.FLAP.COUNT}|Number of connection recoveries within `{$MILESTONE.CAM.FLAP.PERIOD}` that fires the "is unstable" trigger. Supports camera context|`5`||
+|{$MILESTONE.CAM.FLAP.PERIOD}|Time window used to count camera connection recoveries. Supports camera context|`1h`||
+|{$MILESTONE.CAM.OK.MINCOUNT}|Minimum number of camera readings within `{$MILESTONE.CAM.OK.PERIOD}` required to recover the "is down" trigger. Keep lower than the number of 1m checks fitting in `{$MILESTONE.CAM.OK.PERIOD}`. Supports camera context|`4`||
+|{$MILESTONE.CAM.OK.PERIOD}|Time a camera must report no connection error before the "is down" trigger recovers. Supports camera context|`5m`||
 |{$MILESTONE.CERT.EXPIRY.WARN}|Number of days until the certificate expires|`7`||
 |{$MILESTONE.CONN}|Connection protocol used for initial communication, use `https` or `http`|`https`||
 |{$MILESTONE.ID}|Identifier uniquely identifying Zabbix calling instance. Typically, each ID should refer to a specific machine running this template|`ZABBIX_00`||
@@ -66,6 +74,24 @@ GNU General Public License version 3 (GPLv3)
 |{$MILESTONE.PASSWORD}|XProtect password||*|
 |{$MILESTONE.STORAGE.WARN}|Percentage of available storage space remaining that will fire trigger|`10`||
 |{$MILESTONE.USER}|XProtect user, use `DOMAIN\username` format for Windows users||*|
+
+### Camera thresholds per recorder or camera
+
+Camera macros `{$MILESTONE.CAM.*}` support a user macro context in the form `<recorder name>/<camera name>`, using display names as shown in XProtect (`"` and `\` are removed).  
+Define overrides on the Host:
+
+|Override applies to|Example|
+|-------------------|-------|
+|One camera|`{$MILESTONE.CAM.ERR.PERIOD:"REC01/Gate 3"}`|
+|All cameras of some recorders|`{$MILESTONE.CAM.ERR.PERIOD:regex:"^(REC01\|REC02)/"}`|
+|Some cameras of one recorder|`{$MILESTONE.CAM.ERR.PERIOD:regex:"^REC01/(Gate 3\|Gate 4)$"}`|
+|Same cameras on some recorders|`{$MILESTONE.CAM.ERR.PERIOD:regex:"^(REC01\|REC02)/(Gate 3\|Gate 4)$"}`|
+|Specific recorder/camera pairs|`{$MILESTONE.CAM.ERR.PERIOD:regex:"^(REC01/Gate 3\|REC02/Dock 1)$"}`|
+
+Exact context is always checked before regex context. Avoid regex overrides matching the same camera, Zabbix picks one of them in undefined order.  
+Regex special characters in names must be escaped, i.e. `REC.01` is written `REC\.01`.  
+Renaming a recorder or camera silently drops its overrides.  
+Camera periods must not exceed the camera error item history (`1d`). A global history override in Housekeeping replaces it.
 
 ## Items
 
@@ -115,12 +141,18 @@ GNU General Public License version 3 (GPLv3)
 
 |Name|Description|Type|Key and additional info|
 |----|-----------|----|-----------------------|
-|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status|Gets camera status from recording server|`Script`|mxp.cam[{#CAM_ID}.status]|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} connection error|Camera connection error flag: `1` on status 1, otherwise `0`. One value per check, kept 1d|`Dependent item`|mxp.cam[{#CAM_ID}.error]|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status|Camera status, stored on change|`Dependent item`|mxp.cam[{#CAM_ID}.status]|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status check|Gets camera status from recording server. Not stored, feeds status and error items|`Script`|mxp.cam[{#CAM_ID}]|
 
 ### Trigger prototypes for Cameras discovery
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
-|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status||`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])<> 0`|Warning||
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is down|Recording server has had no connection to the camera for `{$MILESTONE.CAM.ERR.PERIOD}`|`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.error])=1 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"},"eq",0)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.ERR.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.ERR.MINCOUNT:"{#CAM_CTX}"}`|Warning|**Recovery expression:**<br>`count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"},"eq",1)=0 and count(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.OK.PERIOD:"{#CAM_CTX}"})>={$MILESTONE.CAM.OK.MINCOUNT:"{#CAM_CTX}"}`<br>Tag `alert: down`|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is unstable|Camera lost and recovered connection at least `{$MILESTONE.CAM.FLAP.COUNT}` times within `{$MILESTONE.CAM.FLAP.PERIOD}`|`changecount(/Milestone XProtect/mxp.cam[{#CAM_ID}.error],{$MILESTONE.CAM.FLAP.PERIOD:"{#CAM_CTX}"},"dec")>={$MILESTONE.CAM.FLAP.COUNT:"{#CAM_CTX}"}`|Warning|**Depends on:**<br>Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is down<br>Tag `alert: unstable`|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} is not licensed||`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])=2`|Warning|Tag `alert: license`|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} lost connection|Any camera connection loss, recorded as it happens|`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])=1`|Info|Tag `alert: connection`|
+|Milestone: [REC] {#REC_DNAME} [CAM] {#CAM_DNAME} status|Camera reports a device, overflow or GOP writing error (status 3, 4 or 5)|`last(/Milestone XProtect/mxp.cam[{#CAM_ID}.status])>=3`|Warning|Tag `alert: error`|
 
 ### Item prototypes for Hotfixes discovery
 
