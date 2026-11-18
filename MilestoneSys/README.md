@@ -129,13 +129,13 @@ Camera periods must not exceed the camera error item history (`1d`). A global hi
 |----|-----------|----|-----------------------|
 |Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME}|Gets archive storage status.<br>Retrieved directly from recording server.|`Script`|mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}]|
 |Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} space available||`Dependent item`|mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.sa]|
-|Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status||`Dependent item`|mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status]|
+|Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status|0 Ok, 1 Unmounted, 2 Unavailable, 3 Not reported (discovered archive missing from recording server response)|`Dependent item`|mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status]|
 
 ### Trigger prototypes for Archives discovery
 |Name|Description|Expression|Severity|Dependencies and additional info|
 |----|-----------|----------|--------|--------------------------------|
 |Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} space available is low||`last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.sa])<{$MILESTONE.ARCHIVE.WARN}`|Warning||
-|Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status||`last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status])<> 0`|High||
+|Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status|Archive is unmounted, unavailable or not reported by recording server.|`last(/Milestone XProtect/mxp.rec.archive[{#REC_ID}.{#REC_ARCHIVE_ID}.status])<> 0`|High||
 
 ### Item prototypes for Cameras discovery
 

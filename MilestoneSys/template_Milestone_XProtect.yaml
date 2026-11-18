@@ -1,6 +1,6 @@
 zabbix_export:
   version: '6.0'
-  date: '2026-11-11T09:00:00Z'
+  date: '2026-11-17T09:00:00Z'
   groups:
     - uuid: d37f71c7e3f7469bab645852a69a2018
       name: 'Templates/Video surveillance'
@@ -41,7 +41,7 @@ zabbix_export:
                 zbx: {
                     instance: null,
                     guid: '6719498d-5848-404a-96cd-ba3589a9b67f',
-                    version: '1.2.0',
+                    version: '1.2.1',
                     name: 'Milestone ZBX',
                     manufacturer: 'https://github.com/lestoilfante'
                 },
@@ -519,19 +519,45 @@ zabbix_export:
               delay: '0'
               units: '%'
               preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.StorageId == ''{#REC_ARCHIVE_ID}'')]'
                 - type: JAVASCRIPT
                   parameters:
                     - |
-                      var storageInfo = JSON.parse(value);
-                      var storage = storageInfo[0];
+                      // -1 is discarded by next step, archive problems are reported by the status item
+                      var resp = JSON.parse(value);
+                      var body = resp && resp.Envelope && resp.Envelope.Body && resp.Envelope.Body.GetArchiveStorageStatusResponse;
+                      if (!body) {
+                        throw 'Unexpected response from recording server';
+                      }
+                      function find(node) {
+                        if (node && typeof node === 'object') {
+                          if (node.StorageId === '{#REC_ARCHIVE_ID}') {
+                            return node;
+                          }
+                          for (var k in node) {
+                            var found = find(node[k]);
+                            if (found) {
+                              return found;
+                            }
+                          }
+                        }
+                        return null;
+                      }
+                      var storage = find(body.GetArchiveStorageStatusResult);
+                      if (!storage) {
+                        return -1;
+                      }
                       var usedSpace = parseFloat(storage.UsedSpaceInBytes);
                       var freeSpace = parseFloat(storage.FreeSpaceInBytes);
                       var totalSpace = usedSpace + freeSpace;
-                      var availablePercentage = (freeSpace / totalSpace) * 100;
-                      return parseInt(availablePercentage);
+                      if (!(totalSpace > 0)) {
+                        return -1;
+                      }
+                      return parseInt((freeSpace / totalSpace) * 100, 10);
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '100'
+                  error_handler: DISCARD_VALUE
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 4h
@@ -554,14 +580,33 @@ zabbix_export:
               valuemap:
                 name: 'Storage status'
               preprocessing:
-                - type: JSONPATH
-                  parameters:
-                    - '$..[?(@.StorageId == ''{#REC_ARCHIVE_ID}'')]'
                 - type: JAVASCRIPT
                   parameters:
                     - |
-                      var storageInfo = JSON.parse(value);
-                      var storage = storageInfo[0];
+                      var resp = JSON.parse(value);
+                      var body = resp && resp.Envelope && resp.Envelope.Body && resp.Envelope.Body.GetArchiveStorageStatusResponse;
+                      if (!body) {
+                        throw 'Unexpected response from recording server';
+                      }
+                      function find(node) {
+                        if (node && typeof node === 'object') {
+                          if (node.StorageId === '{#REC_ARCHIVE_ID}') {
+                            return node;
+                          }
+                          for (var k in node) {
+                            var found = find(node[k]);
+                            if (found) {
+                              return found;
+                            }
+                          }
+                        }
+                        return null;
+                      }
+                      // Archive discovered but not returned by recording server
+                      var storage = find(body.GetArchiveStorageStatusResult);
+                      if (!storage) {
+                        return 3;
+                      }
                       var available = storage.Available === "true";
                       var mounted = storage.Mounted === "true";
                       if (!mounted) {
@@ -585,6 +630,7 @@ zabbix_export:
                   name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME} status'
                   opdata: 'Archive state is {ITEM.VALUE}'
                   priority: HIGH
+                  description: 'Archive is unmounted, unavailable or not reported by recording server.'
             - uuid: a112820e08524e9b96a5e42a918501c4
               name: 'Milestone: [REC] {#REC_DNAME} [ARC] {#REC_ARCHIVE_DNAME}'
               type: SCRIPT
@@ -2751,3 +2797,5 @@ zabbix_export:
               newvalue: Unmounted
             - value: '2'
               newvalue: Unavailable
+            - value: '3'
+              newvalue: 'Not reported'

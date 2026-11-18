@@ -2,6 +2,11 @@
 
 Template version is reported in `Milestone: XProtect Discovery` script as `zbx.version`.
 
+## 1.2.0 to 1.2.1
+
+* Archives missing from the recording server response now fire `[ARC] {#REC_ARCHIVE_DNAME} status` (High) with state *Not reported*. Previously their status item went unsupported and no trigger fired, so expect new problems after import on archives that were already failing
+* Archive `space available` skips the reading instead of going unsupported when the archive is not reported
+
 ## 1.1.0 to 1.2.0
 
 Camera connection loss now fires on duration instead of first error, with flapping detection and thresholds per recorder or camera (see [README.md](README.md#camera-thresholds-per-recorder-or-camera)).
